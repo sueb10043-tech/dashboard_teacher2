@@ -153,7 +153,7 @@
 
         .modal-label { font-size: 10px; font-weight: 900; color: #94a3b8; display: block; margin-bottom: 2px; }
         .modal-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; font-size: 12px; font-weight: 800; outline: none; background: white; color: #1e293b; font-family: inherit; cursor: pointer; text-align: left; }
-        .attendance-tag { font-size: 9px; font-weight: 800; line-height: 1.4; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
+        .attendance-tag { font-size: 10px; font-weight: 800; line-height: 1.4; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
     </style>
 </head>
 <body>
@@ -556,6 +556,21 @@
                 loadMeal();
             }, [data.schoolInfo, todayStr]);
 
+            const currentMonthLabel = useMemo(() => `${Number(todayStr.slice(5,7))}월`, [todayStr]);
+
+            const dutyMonthlyCounts = useMemo(() => {
+                const monthPrefix = todayStr.slice(0, 7);
+                const counts = {};
+                attendanceRecords.filter(r => r.type === '복무' && r.date && r.date.startsWith(monthPrefix)).forEach(r => {
+                    counts[r.dutyType] = (counts[r.dutyType] || 0) + 1;
+                });
+                return Object.entries(counts).map(([dutyType, count]) => ({ dutyType, count }));
+            }, [attendanceRecords, todayStr]);
+
+            const openAttendanceSummaryList = useMemo(() => {
+                return attendanceRecords.filter(r => r.type === '출결' && !(r.docSubmitted && r.neisEntered)).sort((a,b)=>a.date.localeCompare(b.date));
+            }, [attendanceRecords]);
+
             const prioritizedEvalData = useMemo(() => {
                 if (!evalData.length) return [];
                 const finishedRows = data.completedEvalRows || [], subjectOrder = ['국어', '수학', '통합'];
@@ -603,20 +618,20 @@
                 setIsDdayPickerOpen(false);
             };
 
-            // ★ 출결/복무: 구분 열 없이, 출결 블록(A~F) - 빈 열(G) - 복무 블록(H~L)으로 분리 저장
-            const ATTENDANCE_HEADERS = ['ID','날짜','출석번호','출결형식','출석유형','결시교시','','ID','날짜','복무유형','시작시간','종료시간'];
+            // ★ 출결/복무: 구분 열 없이, 출결 블록(A~H) - 빈 열(I) - 복무 블록(J~N)으로 분리 저장
+            const ATTENDANCE_HEADERS = ['ID','날짜','출석번호','출결형식','출석유형','결시교시','서류제출','나이스입력','','ID','날짜','복무유형','시작시간','종료시간'];
             const ATTENDANCE_ROW_CAPACITY = 200;
 
-            const attendanceRecordToRow = (r) => [ r.id, r.date, r.studentNum, r.absenceType, r.absenceReason, (r.periods || []).join(',') ];
+            const attendanceRecordToRow = (r) => [ r.id, r.date, r.studentNum, r.absenceType, r.absenceReason, (r.periods || []).join(','), r.docSubmitted ? 'O' : '', r.neisEntered ? 'O' : '' ];
             const dutyRecordToRow = (r) => [ r.id, r.date, r.dutyType, r.startTime || '', r.endTime || '' ];
 
             const strip = (v) => String(v == null ? '' : v).replace(/^'/, '');
 
             const rowToAttendanceRecord = (row) => {
-                const [id, dateRaw, studentNum, absenceType, absenceReason, periodsStr] = row;
+                const [id, dateRaw, studentNum, absenceType, absenceReason, periodsStr, docSubmittedRaw, neisEnteredRaw] = row;
                 const date = strip(dateRaw);
                 if (!id || !date) return null;
-                return { id, date, type: '출결', studentNum: String(studentNum || ''), absenceType: String(absenceType || ''), absenceReason: String(absenceReason || ''), periods: periodsStr ? String(periodsStr).split(',').filter(Boolean).map(Number) : [] };
+                return { id, date, type: '출결', studentNum: String(studentNum || ''), absenceType: String(absenceType || ''), absenceReason: String(absenceReason || ''), periods: periodsStr ? String(periodsStr).split(',').filter(Boolean).map(Number) : [], docSubmitted: String(docSubmittedRaw || '').trim() === 'O', neisEntered: String(neisEnteredRaw || '').trim() === 'O' };
             };
 
             const rowToDutyRecord = (row) => {
@@ -628,14 +643,14 @@
 
             const loadAttendanceData = useCallback(async () => {
                 try {
-                    const res = await fetch(`${GAS_URL}?sheet=${encodeURIComponent(ATTENDANCE_SHEET)}&range=A2:L${1 + ATTENDANCE_ROW_CAPACITY}`, {
+                    const res = await fetch(`${GAS_URL}?sheet=${encodeURIComponent(ATTENDANCE_SHEET)}&range=A2:N${1 + ATTENDANCE_ROW_CAPACITY}`, {
                         credentials: 'omit'
                     });
                     const result = await res.json();
                     let values = typeof result === 'string' ? JSON.parse(result) : result;
                     if (Array.isArray(values)) {
-                        const attendanceList = values.map(row => rowToAttendanceRecord(row.slice(0, 6))).filter(Boolean);
-                        const dutyList = values.map(row => rowToDutyRecord(row.slice(7, 12))).filter(Boolean);
+                        const attendanceList = values.map(row => rowToAttendanceRecord(row.slice(0, 8))).filter(Boolean);
+                        const dutyList = values.map(row => rowToDutyRecord(row.slice(9, 14))).filter(Boolean);
                         setAttendanceRecords([...attendanceList, ...dutyList]);
                     } else {
                         setAttendanceRecords([]);
@@ -649,14 +664,14 @@
                 try {
                     const attendanceRows = attendanceRecords.filter(r => r.type === '출결').map(attendanceRecordToRow);
                     const dutyRows = attendanceRecords.filter(r => r.type === '복무').map(dutyRecordToRow);
-                    while (attendanceRows.length < ATTENDANCE_ROW_CAPACITY) attendanceRows.push(['', '', '', '', '', '']);
+                    while (attendanceRows.length < ATTENDANCE_ROW_CAPACITY) attendanceRows.push(['', '', '', '', '', '', '', '']);
                     while (dutyRows.length < ATTENDANCE_ROW_CAPACITY) dutyRows.push(['', '', '', '', '']);
                     const dataRows = [];
                     for (let i = 0; i < ATTENDANCE_ROW_CAPACITY; i++) {
                         dataRows.push([...attendanceRows[i], '', ...dutyRows[i]]);
                     }
                     const allRows = [ATTENDANCE_HEADERS, ...dataRows];
-                    const targetUrl = `${GAS_URL}?sheet=${encodeURIComponent(ATTENDANCE_SHEET)}&range=A1:L${1 + ATTENDANCE_ROW_CAPACITY}`;
+                    const targetUrl = `${GAS_URL}?sheet=${encodeURIComponent(ATTENDANCE_SHEET)}&range=A1:N${1 + ATTENDANCE_ROW_CAPACITY}`;
                     await fetch(targetUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ data: allRows }) });
                 } catch (e) { console.error("Attendance Save Error:", e); }
             }, [attendanceRecords, isAttendanceLoaded]);
@@ -940,22 +955,28 @@
 
                             <section className="glass-card h-[125px] overflow-hidden relative">
                                 <header className="widget-header" style={{ height: '22px' }}>
-                                    <div className="flex items-center gap-1.5"><Icon name="list-checks" className="text-indigo-600" size={12} /><h2 className="font-black text-[14px]">개인 루틴</h2></div>
-                                    <div className="flex items-center gap-1.5 mr-1">
-                                        <button onClick={()=>addNewItem('personalRoutines')} className="text-slate-300 hover:text-indigo-600 transition-colors"><Icon name="plus" size={13}/></button>
-                                        <button onClick={()=>setConfirmClear('personalRoutines')} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash-2" size={12}/></button>
-                                    </div>
+                                    <div className="flex items-center gap-1.5"><Icon name="clipboard-check" className="text-indigo-600" size={12} /><h2 className="font-black text-[14px]">출결 및 복무사항</h2></div>
                                 </header>
-                                {confirmClear === 'personalRoutines' && <CardConfirmOverlay onConfirm={()=>{updateData({personalRoutines:[]}); setConfirmClear(null);}} onCancel={()=>setConfirmClear(null)} />}
-                                <div className="flex-grow overflow-y-auto hide-scrollbar px-1 pt-[2px] pb-1">
-                                    <div className="pillar-container">
-                                        <div className="pillar">
-                                            {(data.personalRoutines || []).filter((_,i)=>i%2===0).map(r => (<RoutineItem key={r.id} value={r.text} completed={r.completed} color={r.color} onChange={(u)=>updateData({personalRoutines: data.personalRoutines.map(it=>it.id===r.id?{...it,...u}:it)})} onDelete={()=>updateData({personalRoutines: data.personalRoutines.filter(it=>it.id!==r.id)})} />))}
+                                <div className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1">
+                                    {openAttendanceSummaryList.map(r => (
+                                        <div key={r.id} className="flex items-center gap-1 text-[10px] font-black text-slate-700 leading-[1.4] mb-0.5">
+                                            <span className="truncate flex-1">{getStudentLabel(r.studentNum)} {r.absenceType}({r.absenceReason})</span>
+                                            <label className="flex items-center gap-0.5 shrink-0 text-slate-500">
+                                                <input type="checkbox" className="compact-checkbox" checked={!!r.docSubmitted} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, docSubmitted: e.target.checked}:x))} />서
+                                            </label>
+                                            <label className="flex items-center gap-0.5 shrink-0 text-slate-500">
+                                                <input type="checkbox" className="compact-checkbox" checked={!!r.neisEntered} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, neisEntered: e.target.checked}:x))} />나
+                                            </label>
                                         </div>
-                                        <div className="pillar">
-                                            {(data.personalRoutines || []).filter((_,i)=>i%2!==0).map(r => (<RoutineItem key={r.id} value={r.text} completed={r.completed} color={r.color} onChange={(u)=>updateData({personalRoutines: data.personalRoutines.map(it=>it.id===r.id?{...it,...u}:it)})} onDelete={()=>updateData({personalRoutines: data.personalRoutines.filter(it=>it.id!==r.id)})} />))}
+                                    ))}
+                                    {dutyMonthlyCounts.map(({dutyType, count}) => (
+                                        <div key={dutyType} className="text-[10px] font-black text-amber-700 leading-[1.4]">
+                                            {currentMonthLabel} {dutyType} {count}회
                                         </div>
-                                    </div>
+                                    ))}
+                                    {openAttendanceSummaryList.length === 0 && dutyMonthlyCounts.length === 0 && (
+                                        <div className="text-[10px] font-bold text-slate-300 text-center pt-2">기록 없음</div>
+                                    )}
                                 </div>
                             </section>
 

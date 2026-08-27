@@ -79,7 +79,7 @@
         .strikethrough-line { text-decoration: line-through !important; text-decoration-color: #475569 !important; text-decoration-thickness: 1.5px !important; color: #94a3b8 !important; }
         
         .compact-checkbox { 
-            width: 13px !important; height: 13px !important; accent-color: #4f46e5; 
+            width: 12px !important; height: 12px !important; accent-color: #4f46e5; 
             cursor: pointer; margin: 0 !important; padding: 0 !important;
             border: none; outline: none; display: inline-block;
         }
@@ -286,7 +286,7 @@
                     onMouseEnter={() => setIsHovered(true)}
                     onMouseLeave={() => setIsHovered(false)}
                 >
-                    <div className="checkbox-container flex items-center justify-center shrink-0 w-[16px] mr-1.5" style={{ height: '18px' }}>
+                    <div className="checkbox-container flex items-center justify-center shrink-0 w-[15px] mr-[3px]" style={{ height: '18px' }}>
                         <input type="checkbox" checked={!!completed} onChange={(e) => onChange({completed: e.target.checked})} className="compact-checkbox" />
                     </div>
                     <textarea 
@@ -556,16 +556,16 @@
                 loadMeal();
             }, [data.schoolInfo, todayStr]);
 
-            const currentMonthLabel = useMemo(() => `${Number(todayStr.slice(5,7))}월`, [todayStr]);
+            const currentMonthLabel = useMemo(() => `${viewDate.getMonth() + 1}월`, [viewDate]);
 
             const dutyMonthlyCounts = useMemo(() => {
-                const monthPrefix = todayStr.slice(0, 7);
+                const monthPrefix = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
                 const counts = {};
                 attendanceRecords.filter(r => r.type === '복무' && r.date && r.date.startsWith(monthPrefix)).forEach(r => {
                     counts[r.dutyType] = (counts[r.dutyType] || 0) + 1;
                 });
                 return Object.entries(counts).map(([dutyType, count]) => ({ dutyType, count }));
-            }, [attendanceRecords, todayStr]);
+            }, [attendanceRecords, viewDate]);
 
             const openAttendanceSummaryList = useMemo(() => {
                 return attendanceRecords.filter(r => r.type === '출결' && !(r.docSubmitted && r.neisEntered)).sort((a,b)=>a.date.localeCompare(b.date));
@@ -964,7 +964,7 @@
                                             <label className="flex items-center gap-0.5 shrink-0 text-slate-500">
                                                 <input type="checkbox" className="compact-checkbox" checked={!!r.docSubmitted} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, docSubmitted: e.target.checked}:x))} />서류 제출
                                             </label>
-                                            <label className="flex items-center gap-0.5 shrink-0 text-slate-500">
+                                            <label className="flex items-center gap-0.5 shrink-0 text-slate-500 ml-2">
                                                 <input type="checkbox" className="compact-checkbox" checked={!!r.neisEntered} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, neisEntered: e.target.checked}:x))} />나이스
                                             </label>
                                         </div>

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Persistence Pro</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    
+    <style>
+        :root { --zoom-level: 1; }
+        body { 
+            font-family: 'Pretendard', sans-serif; background-color: transparent; margin: 0; padding: 0;
+            width: 1920px; height: 1080px; overflow: hidden; -webkit-font-smoothing: antialiased;
+            transform-origin: top left; transform: scale(var(--zoom-level));
+            user-select: none; -webkit-user-select: none;
+        }
+        #root { height: 100%; display: flex; align-items: flex-start; justify-content: flex-start; position: relative; }
+        
+        textarea, input[type="text"], input[type="number"], .selectable-text { 
+            user-select: text !important; -webkit-user-select: text !important; cursor: text !important;
+            pointer-events: auto !important;
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .dashboard-container { 
+            margin-top: 5px; margin-left: 604px; margin-right: 260px; 
+            width: 1056px; height: 1070px; display: flex; flex-direction: column; position: relative;
+            overflow-y: auto; overflow-x: hidden; padding-bottom: 150px;
+            scrollbar-width: none; -ms-overflow-style: none;
+        }
+        .dashboard-container::-webkit-scrollbar { display: none; }
+
+        .calendar-section { height: 750px; display: flex; flex-direction: column; padding: 0.5rem; flex-shrink: 0; overflow: visible; z-index: 10; }
+        
+        .remainder-section { 
+            padding: 0.2rem 0.5rem 0.5rem 0.5rem; 
+            display: flex; flex-direction: column; gap: 0.5rem; 
+            width: 100%; overflow: visible; position: relative; z-index: 5; 
+        }
+        .widget-grid-row {
+            display: grid;
+            grid-template-columns: 175px 270px 260px 311px;
+            gap: 0.5rem;
+            align-items: start;
+        }
+
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border: 1px solid rgba(203, 213, 225, 0.5); border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; flex-direction: column; min-height: 0; position: relative; }
+        
+        .calendar-grid-parent { 
+            display: grid; grid-template-columns: repeat(5, 1.7fr) repeat(2, 1fr); 
+            flex: 1; min-height: 0; background: #E2E8F0; gap: 1px; border-top: 1px solid #E2E8F0; width: 100%; 
+        }
+        
+        .header-cell { background-color: #ffffff; font-size: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; height: 24px; text-transform: uppercase; }
+        .table-cell { background: white; display: flex; flex-direction: column; padding: 2px 0px 2px 3px; min-width: 0; overflow: visible; position: relative; transition: background-color 0.2s; }
+        .today-highlight { outline: 2px solid #6366F1 !important; outline-offset: -2px; z-index: 50; }
+
+        .hide-scrollbar { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+        .hide-scrollbar::-webkit-scrollbar { display: none !important; }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        
+        .item-input-base { 
+            border: none !important; background: transparent !important; flex: 1 !important; 
+            width: 100%; outline: none; overflow: hidden; resize: none; padding: 0 !important;
+            display: block; word-break: break-all; white-space: pre-wrap;
+        }
+        .strikethrough-line { text-decoration: line-through !important; text-decoration-color: #475569 !important; text-decoration-thickness: 1.5px !important; color: #94a3b8 !important; }
+        
+        .compact-checkbox { 
+            width: 13px !important; height: 13px !important; accent-color: #4f46e5; 
+            cursor: pointer; margin: 0 !important; padding: 0 !important;
+            border: none; outline: none; display: inline-block;
+        }
+        
+        .popover-base { position: absolute; background: white !important; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15); z-index: 9999; animation: popFade 0.12s ease-out; }
+        @keyframes popFade { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        
+        .widget-header { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; margin-bottom: 0px; padding: 0 0.25rem; }
+        
+        .pillar-container { display: flex; width: 100%; gap: 3px; align-items: flex-start; }
+        .pillar { flex: 1; display: flex; flex-direction: column; gap: 0px; }
+
+        .sync-indicator { font-size: 10px; font-weight: 900; color: #6366f1; display: flex; align-items: center; gap: 4px; background: rgba(99, 102, 241, 0.1); padding: 2px 8px; border-radius: 9999px; }
+        .loading-spinner { border: 2px solid #f3f3f3; border-top: 2px solid #6366f1; border-radius: 50%; width: 10px; height: 10px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .card-confirm-overlay { 
+            position: absolute; inset: 0; background: rgba(255, 255, 255, 0.98); 
+            z-index: 2000; display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; backdrop-filter: blur(4px); border-radius: 0.75rem; 
+            border: 2px solid #ef4444; padding: 0.5rem; text-align: center;
+        }
+
+        .budget-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 10px; }
+        .budget-table th { background: #f8fafc; color: #64748b; font-weight: 900; padding: 4px 2px; border-bottom: 1px solid #e2e8f0; text-align: center; position: sticky; top: 0; z-index: 10; }
+        .budget-table td { padding: 4px 2px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; line-height: 1.2; text-align: center; }
+        
+        .eval-table { 
+            width: 100%; border-collapse: collapse; border-spacing: 0; table-layout: fixed; 
+            user-select: text !important; -webkit-user-select: text !important; -moz-user-select: text !important; -ms-user-select: text !important;
+            pointer-events: auto !important;
+        }
+        .eval-table th { background: #f8fafc; color: #64748b; font-weight: 900; padding: 4px 1px; border-bottom: 1px solid #e2e8f0; text-align: center; position: sticky; top: 0; z-index: 10; font-size: 8.5px; height: 18px; }
+        .eval-table td { 
+            padding: 3px 1px 1px 1px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; 
+            line-height: 1.2; text-align: center; overflow: visible; white-space: nowrap; 
+            font-weight: 800; font-size: 10.5px; height: 22px; position: relative;
+            user-select: text !important; -webkit-user-select: text !important; -moz-user-select: text !important; -ms-user-select: text !important;
+            pointer-events: auto !important;
+        }
+        
+        .eval-factor-cell { 
+            cursor: default; position: relative; overflow: visible !important; 
+            user-select: text !important; -webkit-user-select: text !important; -moz-user-select: text !important; -ms-user-select: text !important;
+            pointer-events: auto !important;
+        }
+
+        .eval-tooltip-text { 
+            visibility: hidden; opacity: 0; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: #fff; text-align: center; padding: 6px 12px; border-radius: 6px;
+            width: max-content; max-width: 250px; z-index: 9999999; transition: opacity 0.1s, visibility 0.1s;
+            pointer-events: none; white-space: normal !important; word-break: break-all; font-size: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #334155; margin-top: 4px;
+        }
+        .eval-tooltip-text::after { content: ""; position: absolute; bottom: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: transparent transparent #1e293b transparent; }
+        .eval-factor-cell:hover .eval-tooltip-text.show { visibility: visible; opacity: 1; }
+
+        .dday-badge { cursor: pointer; background: #6366f1; color: white; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 900; transition: all 0.2s; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2); display: flex; align-items: center; gap: 6px; }
+        
+        .link-item-row { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 22px; border-bottom: 1px solid #f8fafc; }
+        .link-text-btn { text-align: left; font-size: 10.5px; font-weight: 900; color: #475569; flex: 1; padding: 1px 4px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; outline: none !important; }
+        .link-text-btn:hover { background: #f1f5f9; color: #6366f1; }
+
+        .popover-color-picker { display: flex; gap: 4px; padding: 4px; background: white; border: 1px solid #e2e8f0; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); position: absolute; z-index: 1000; }
+        .color-dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); transition: transform 0.1s; }
+        .color-dot:hover { transform: scale(1.2); }
+
+        .month-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; }
+        .month-btn { padding: 4px; border-radius: 6px; text-align: center; font-weight: 800; font-size: 11px; transition: all 0.1s; }
+        .month-btn:hover { background: #e0e7ff; color: #4338ca; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="env,react">
+        const { useState, useEffect, useMemo, useRef, useCallback, memo, useLayoutEffect } = React;
+
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzoCgmF_cfpNOaImXQ7yY0UPOZ5eDuH1whp7NKTdEAvjPWGO6y5GzvafqySyy3Oul1l/exec"; 
+        const DASHBOARD_SHEET = "교사용_바탕화면";
+        const BUDGET_SHEET = "교사용_예산";
+        const EVAL_SHEET = "교사용_평가";
+        const SAVE_RANGE = "A3:G3";
+        const BUDGET_EXTERNAL_LINK = "https://sueb10043-tech.github.io/schoolbudget/";
+
+        const COLORS = {
+            BG_WHITE: '#FFFFFF', BG_RED: '#FFF1F2', BG_BLUE: '#EFF6FF',
+            TXT_BLACK: '#1E293B', TXT_RED: '#EF4444', TXT_BLUE: '#2563EB'
+        };
+        
+        const Icon = ({ name, className, size = 12, onClick }) => {
+            const iconRef = useRef(null);
+            useEffect(() => { if (window.lucide && iconRef.current) { window.lucide.createIcons({ elements: [iconRef.current] }); } }, [name, size]);
+            return ( <span key={`${name}-${size}`} onClick={onClick} className={`inline-flex items-center justify-center shrink-0 overflow-hidden ${onClick ? 'cursor-pointer' : ''}`} style={{ width: size, height: size }}> <i ref={iconRef} data-lucide={name} className={className} style={{ width: size, height: size }}></i> </span> );
+        };
+
+        const getSubjectColor = (sub) => {
+            if (sub === '국어') return 'text-indigo-600';
+            if (sub === '수학') return 'text-rose-600';
+            if (sub === '통합') return 'text-emerald-600';
+            return 'text-amber-600';
+        };
+
+        const getLocalDateString = (date) => {
+            if (!date) return "";
+            const year = date.getFullYear(), month = String(date.getMonth() + 1).padStart(2, '0'), day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const useAutoZoom = () => {
+            useEffect(() => {
+                const updateZoom = () => {
+                    const zoom = Math.min(window.innerWidth / 1920, 1);
+                    document.documentElement.style.setProperty('--zoom-level', zoom);
+                };
+                window.addEventListener('resize', updateZoom); updateZoom();
+                return () => window.removeEventListener('resize', updateZoom);
+            }, []);
+        };
+
+        const FactorCell = ({ factor, isFinished }) => {
+            const [showTooltip, setShowTooltip] = useState(false);
+            const textRef = useRef(null);
+            const handleMouseEnter = () => { if (textRef.current) setShowTooltip(textRef.current.scrollWidth > textRef.current.clientWidth); };
+            const content = typeof factor === 'object' ? JSON.stringify(factor) : String(factor || "");
+            return (
+                <td className={`text-left px-1 eval-factor-cell ${isFinished ? 'eval-done-text' : ''}`} onMouseEnter={handleMouseEnter}>
+                    <div ref={textRef} className="truncate w-full selectable-text">{content}</div>
+                    <span className={`eval-tooltip-text ${showTooltip ? 'show' : ''}`}>{content}</span>
+                </td>
+            );
+        };
+
+        const CardConfirmOverlay = ({ onConfirm, onCancel }) => (
+            <div className="card-confirm-overlay">
+                <Icon name="alert-triangle" className="text-red-500 mb-1" size={24} />
+                <h3 className="font-black text-slate-800 text-[11px] mb-0.5">정말 모두 삭제할까요?</h3>
+                <div className="flex gap-1.5 w-full mt-2 px-4">
+                    <button onClick={onCancel} className="flex-1 h-6 bg-slate-100 text-slate-600 rounded font-black text-[10px]">취소</button>
+                    <button onClick={onConfirm} className="flex-1 h-6 bg-red-500 text-white rounded font-black text-[10px]">삭제</button>
+                </div>
+            </div>
+        );
+
+        const MonthlyPlanItem = memo(({ value, completed, color, onChange, onDelete }) => {
+            const textareaRef = useRef(null);
+            const [isHovered, setIsHovered] = useState(false);
+            const adjustHeight = useCallback(() => { 
+                if (textareaRef.current) { 
+                    textareaRef.current.style.height = "auto"; 
+                    textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`; 
+                } 
+            }, []);
+            useLayoutEffect(() => { adjustHeight(); }, [value, adjustHeight]);
+            
+            return (
+                <div 
+                    className="flex w-full group/item relative mb-[1.5px] items-start overflow-visible"
+                    onMouseEnter={() => setIsHovered(true)}
+                    onMouseLeave={() => setIsHovered(false)}
+                >
+                    <div className="checkbox-container flex items-center justify-center shrink-0 w-[16px] mr-1.5" style={{ height: '18px' }}>
+                        <input type="checkbox" checked={!!completed} onChange={(e) => onChange({completed: e.target.checked})} className="compact-checkbox" />
+                    </div>
+                    <textarea 
+                        ref={textareaRef} 
+                        rows={1} 
+                        onMouseDown={(e) => e.stopPropagation()} 
+                        spellCheck={false} 
+                        className={`item-input-base text-[12px] font-black leading-[1.5] flex-1 ${completed ? 'strikethrough-line' : ''}`} 
+                        style={{ color: completed ? '' : (color || COLORS.TXT_BLACK) }} 
+                        value={value} 
+                        onChange={(e) => onChange({text: e.target.value})} 
+                        onInput={adjustHeight} 
+                    />
+                    <button onClick={onDelete} className="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 px-0 m-0 mr-1 shrink-0 transition-opacity flex items-center justify-center h-full"><Icon name="x" size={11} /></button>
+                    
+                    {isHovered && !completed && (
+                        <div className="popover-color-picker" style={{ top: '100%', left: '16px', marginTop: '2px' }}>
+                            <div className="color-dot bg-black" onClick={() => onChange({ color: COLORS.TXT_BLACK })}></div>
+                            <div className="color-dot bg-red-500" onClick={() => onChange({ color: COLORS.TXT_RED })}></div>
+                            <div className="color-dot bg-blue-500" onClick={() => onChange({ color: COLORS.TXT_BLUE })}></div>
+                        </div>
+                    )}
+                </div>
+            );
+        });
+
+        const RoutineItem = memo(({ value, completed, color, onChange, onDelete }) => {
+            return (
+                <div style={{ display: 'table', width: '100%', height: '19px', tableLayout: 'fixed' }} className="group/item mb-0">
+                    <div style={{ display: 'table-cell', verticalAlign: 'middle', width: '22px' }}>
+                        <input type="checkbox" checked={!!completed} onChange={(e) => onChange({completed: e.target.checked})} className="compact-checkbox" />
+                    </div>
+                    <div style={{ display: 'table-cell', verticalAlign: 'middle' }}>
+                        <textarea 
+                            rows={1} 
+                            onMouseDown={(e) => e.stopPropagation()} 
+                            spellCheck={false} 
+                            className={`bg-transparent border-none outline-none text-[12px] font-black w-full p-0 m-0 leading-[1.5] resize-none ${completed ? 'strikethrough-line' : ''}`} 
+                            style={{ color: completed ? '' : (color || COLORS.TXT_BLACK), height: '19px', display: 'block' }} 
+                            value={value} 
+                            onChange={(e) => onChange({text: e.target.value})} 
+                        />
+                    </div>
+                    <div style={{ display: 'table-cell', verticalAlign: 'middle', width: '18px', textAlign: 'right' }}>
+                        <button onClick={onDelete} className="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity h-full flex items-center justify-center"><Icon name="x" size={10} /></button>
+                    </div>
+                </div>
+            );
+        });
+
+        const ChecklistItem = memo(({ value, completed, color, onChange, onDelete }) => {
+            return (
+                <div className="flex items-center w-full group/item relative mb-0 h-[18px] overflow-hidden">
+                    <div className="flex items-center justify-center shrink-0 w-[22px] h-full">
+                        <input 
+                            type="checkbox" 
+                            checked={!!completed} 
+                            onChange={(e) => onChange({completed: e.target.checked})} 
+                            className="compact-checkbox relative -top-[0.2px]" 
+                        />
+                    </div>
+                    <div className="flex-1 h-full flex items-center">
+                        <input 
+                            type="text"
+                            onMouseDown={(e) => e.stopPropagation()} 
+                            spellCheck={false} 
+                            className={`bg-transparent border-none outline-none text-[11.5px] font-black w-full p-0 m-0 h-[18px] leading-none ${completed ? 'strikethrough-line text-slate-400' : ''}`} 
+                            style={{ color: completed ? '' : (color || COLORS.TXT_BLACK) }} 
+                            value={value} 
+                            onChange={(e) => onChange({text: e.target.value})} 
+                        />
+                    </div>
+                    <div className="flex items-center justify-center w-[18px] h-full">
+                        <button onClick={onDelete} className="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity flex items-center justify-center shrink-0"><Icon name="x" size={10} /></button>
+                    </div>
+                </div>
+            );
+        });
+
+        function App() {
+            useAutoZoom();
+            const [now, setNow] = useState(new Date()); 
+            const [data, setData] = useState({ monthlyData: {}, routines: [], personalRoutines: [], waterTarget: 2000, waterHistory: {}, waterHistoryLogs: {}, generalMemo: '', evaluationMemo: '', schoolInfo: null, lastResetDate: "", dDayDate: "", dDayTitle: "", links: [], completedEvalRows: [] });
+            const [budgetData, setBudgetData] = useState({ budgets: [] });
+            const [evalData, setEvalData] = useState([]);
+            const [mealData, setMealData] = useState([]);
+            const [isInitialLoading, setIsInitialLoading] = useState(true);
+            const [isSyncing, setIsSyncing] = useState(false);
+            const [viewDate, setViewDate] = useState(new Date());
+            const [hoveredDate, setHoveredDate] = useState(null);
+            const [confirmClear, setConfirmClear] = useState(null);
+            const [isLinkAddOpen, setIsLinkAddOpen] = useState(false);
+            const [tempLink, setTempLink] = useState({ name: '', url: 'https://' });
+            const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+            const todayStr = useMemo(() => getLocalDateString(now), [now]);
+
+            useEffect(() => {
+                if (!isInitialLoading && data.lastResetDate && data.lastResetDate !== todayStr) {
+                    setData(prev => ({
+                        ...prev,
+                        personalRoutines: (prev.personalRoutines || []).map(r => ({ ...r, completed: false })),
+                        lastResetDate: todayStr
+                    }));
+                } else if (!isInitialLoading && !data.lastResetDate) {
+                    setData(prev => ({ ...prev, lastResetDate: todayStr }));
+                }
+            }, [todayStr, isInitialLoading, data.lastResetDate]);
+
+            const calendarDays = useMemo(() => {
+                const y = viewDate.getFullYear(), m = viewDate.getMonth(), adj = new Date(y, m, 1).getDay() === 0 ? 6 : new Date(y, m, 1).getDay() - 1;
+                const days = [];
+                for (let i = 0; i < adj; i++) days.push(null);
+                for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) days.push(new Date(y, m, d));
+                while (days.length % 7 !== 0) days.push(null);
+                return days;
+            }, [viewDate]);
+
+            const waterIntake = useMemo(() => data.waterHistory?.[todayStr] || 0, [data.waterHistory, todayStr]);
+            const dDayValue = useMemo(() => {
+                if (!data.dDayDate) return '';
+                const diff = Math.ceil((new Date(data.dDayDate) - new Date(todayStr)) / (1000 * 3600 * 24));
+                return diff === 0 ? "D-Day" : diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
+            }, [data.dDayDate, todayStr]);
+
+            const updateData = useCallback((updates) => setData(prev => ({ ...prev, ...updates })), []);
+
+            const saveToCloud = useCallback(async () => {
+                if (isInitialLoading || !GAS_URL) return;
+                setIsSyncing(true);
+                try {
+                    const payload = [
+                        JSON.stringify(data.monthlyData),
+                        JSON.stringify(data.routines),
+                        JSON.stringify(data.personalRoutines),
+                        JSON.stringify({ waterTarget: data.waterTarget, waterHistory: data.waterHistory, waterHistoryLogs: data.waterHistoryLogs }),
+                        JSON.stringify(data.links),
+                        JSON.stringify({ generalMemo: data.generalMemo, evaluationMemo: data.evaluationMemo }),
+                        JSON.stringify({ lastResetDate: data.lastResetDate, dDayDate: data.dDayDate, dDayTitle: data.dDayTitle, completedEvalRows: data.completedEvalRows, schoolInfo: data.schoolInfo })
+                    ];
+                    const targetUrl = `${GAS_URL}?sheet=${encodeURIComponent(DASHBOARD_SHEET)}&range=${encodeURIComponent(SAVE_RANGE)}`;
+                    await fetch(targetUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ data: [payload] }) });
+                } catch (e) { console.error("Save Error:", e); } 
+                finally { setIsSyncing(false); }
+            }, [data, isInitialLoading]);
+
+            useEffect(() => {
+                const timer = setTimeout(() => { if (!isInitialLoading) saveToCloud(); }, 1500);
+                return () => clearTimeout(timer);
+            }, [data, isInitialLoading, saveToCloud]);
+
+            // ★ 수정: GET 요청에 credentials: 'omit' 추가
+            const loadFromCloud = useCallback(async () => {
+                if (!GAS_URL) return;
+                setIsSyncing(true);
+                try {
+                    const res = await fetch(`${GAS_URL}?sheet=${encodeURIComponent(DASHBOARD_SHEET)}&range=${SAVE_RANGE}`, {
+                        credentials: 'omit'
+                    });
+                    const result = await res.json();
+                    let values = typeof result === 'string' ? JSON.parse(result) : result;
+                    if (Array.isArray(values) && values[0]) {
+                        const row = values[0], sj = (s) => { try { return JSON.parse(s); } catch { return null; } };
+                        const meta = sj(row[6]) || {};
+                        setData({ 
+                            monthlyData: sj(row[0]) || {}, routines: sj(row[1]) || [], personalRoutines: sj(row[2]) || [], 
+                            ...(sj(row[3]) || { waterTarget: 2000, waterHistory: {}, waterHistoryLogs: {} }), 
+                            links: sj(row[4]) || [], ...(sj(row[5]) || { generalMemo: '', evaluationMemo: '' }), 
+                            ...meta 
+                        });
+                    }
+                } catch (e) { console.error("Load Error:", e); } 
+                finally { setIsInitialLoading(false); setIsSyncing(false); }
+            }, []);
+
+            // ★ 수정: GET 요청에 credentials: 'omit' 추가
+            const fetchBudgetData = useCallback(async () => {
+                try {
+                    const res = await fetch(`${GAS_URL}?sheet=${encodeURIComponent(BUDGET_SHEET)}&range=A1`, {
+                        credentials: 'omit'
+                    });
+                    const result = await res.json();
+                    
+                    let rawData = result;
+                    while (Array.isArray(rawData) && rawData.length > 0 && Array.isArray(rawData[0])) {
+                        rawData = rawData[0];
+                    }
+                    if (Array.isArray(rawData) && rawData.length === 1 && typeof rawData[0] === 'string') {
+                        rawData = rawData[0];
+                    }
+
+                    let parsed = rawData;
+                    if (typeof rawData === 'string') {
+                        try { parsed = JSON.parse(rawData.replace(/[""]/g, '"')); } catch (e) { parsed = {}; }
+                    }
+
+                    const budgets = parsed.budgets || [];
+                    const transactions = parsed.transactions || [];
+                    
+                    const formatted = budgets.map(b => {
+                        const totalSpent = transactions
+                            .filter(t => t.budgetId === b.id)
+                            .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+                        
+                        return { 
+                            name: String(b.name || '항목 없음'), 
+                            balance: (Number(b.plannedAmount) || 0) - totalSpent 
+                        };
+                    });
+                    
+                    setBudgetData({ budgets: formatted });
+                } catch (e) { 
+                    console.error("Budget Error:", e); 
+                    setBudgetData({ budgets: [] });
+                }
+            }, []);
+
+            // ★ 수정: GET 요청에 credentials: 'omit' 추가
+            const fetchEvalData = useCallback(async () => {
+                try {
+                    const res = await fetch(`${GAS_URL}?sheet=${encodeURIComponent(EVAL_SHEET)}&range=A3:H100`, {
+                        credentials: 'omit'
+                    });
+                    const result = await res.json();
+                    let values = typeof result === 'string' ? JSON.parse(result) : result;
+                    if (Array.isArray(values)) {
+                        let lastSub = "";
+                        setEvalData(values.filter(r => r.some(c => c && c.toString().trim() !== "")).map((r, i) => {
+                            const subName = (r[0] && r[0].toString().trim() !== "") ? r[0] : lastSub; lastSub = subName;
+                            return { 
+                                sheetRow: i + 3, 
+                                subject: String(subName), 
+                                unit: String(r[1] || ""), 
+                                factor: r[3], 
+                                n1: String(r[4] || ""), 
+                                n2: String(r[5] || ""), 
+                                n3: String(r[6] || ""), 
+                                n4: String(r[7] || "") 
+                            };
+                        }));
+                    }
+                } catch (e) { console.error("Eval Error:", e); }
+            }, []);
+
+            useEffect(() => {
+                if (!data.schoolInfo) return;
+                const loadMeal = async () => {
+                    try {
+                        const url = `https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&ATPT_OFCDC_SC_CODE=${data.schoolInfo.officeCode}&SD_SCHUL_CODE=${data.schoolInfo.schoolCode}&MLSV_YMD=${todayStr.replace(/-/g, '')}`;
+                        const res = await fetch(url);
+                        const resJson = await res.json();
+                        if (resJson.mealServiceDietInfo) {
+                            const dishes = resJson.mealServiceDietInfo[1].row[0].DDISH_NM.replace(/\([0-9.]+\)/g, '').split('<br/>').map(s => s.trim()).filter(s => s);
+                            setMealData(dishes);
+                        } else { setMealData([]); }
+                    } catch (e) { setMealData([]); }
+                };
+                loadMeal();
+            }, [data.schoolInfo, todayStr]);
+
+            useEffect(() => {
+                const init = async () => {
+                    await loadFromCloud();
+                    fetchBudgetData();
+                    fetchEvalData();
+                };
+                init();
+            }, [loadFromCloud, fetchBudgetData, fetchEvalData]);
+
+            const prioritizedEvalData = useMemo(() => {
+                if (!evalData.length) return [];
+                const finishedRows = data.completedEvalRows || [], subjectOrder = ['국어', '수학', '통합'];
+                const incomplete = evalData.filter(d => !finishedRows.includes(d.sheetRow)), complete = evalData.filter(d => finishedRows.includes(d.sheetRow));
+                const priorityRows = [], usedIds = new Set(), counts = { '국어': 2, '수학': 1, '통합': 2 };
+                subjectOrder.forEach(sub => {
+                    const subItems = incomplete.filter(d => d.subject === sub).sort((a, b) => String(a.unit || "").localeCompare(String(b.unit || ""), 'ko'));
+                    subItems.slice(0, counts[sub] || 0).forEach(item => { priorityRows.push(item); usedIds.add(item.sheetRow); });
+                });
+                return [...priorityRows, ...incomplete.filter(d => !usedIds.has(d.sheetRow)), ...complete];
+            }, [evalData, data.completedEvalRows]);
+
+            const addNewItem = (type) => {
+                if (type === 'personalRoutines') updateData({ personalRoutines: [...data.personalRoutines, { id: Date.now(), text: '', completed: false }] });
+                else if (type === 'routines') updateData({ routines: [...data.routines, { id: Date.now(), text: '', completed: false }] });
+            };
+
+            const toggleEvalDone = (idx) => {
+                setData(prev => {
+                    const list = [...(prev.completedEvalRows || [])];
+                    return { ...prev, completedEvalRows: list.includes(idx) ? list.filter(i => i !== idx) : [...list, idx] };
+                });
+            };
+
+            const cycleEvalResult = async (rowObj, colKey) => {
+                const results = ["", "◎", "○", "△"];
+                const nextVal = results[(results.indexOf(rowObj[colKey]) + 1) % results.length];
+                setEvalData(prev => prev.map(item => item.sheetRow === rowObj.sheetRow ? { ...item, [colKey]: nextVal } : item));
+                const colLetter = { n1: 'E', n2: 'F', n3: 'G', n4: 'H' }[colKey];
+                try { await fetch(`${GAS_URL}?sheet=${encodeURIComponent(EVAL_SHEET)}`, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ range: `${colLetter}${rowObj.sheetRow}`, data: [[nextVal]] }) }); } catch (e) {}
+            };
+
+            const addNewLink = () => {
+                if (tempLink.name && tempLink.url) {
+                    updateData({ links: [...data.links, { id: Date.now(), text: tempLink.name, url: tempLink.url }] });
+                    setTempLink({ name: '', url: 'https://' });
+                    setIsLinkAddOpen(false);
+                }
+            };
+
+            return (
+                <div className="dashboard-container">
+                    <section className="calendar-section">
+                        <div className="glass-card h-full">
+                            <header className="flex items-center justify-between h-10 px-4 shrink-0">
+                                <div className="flex items-center gap-2 relative flex-1 min-w-0">
+                                    <Icon name="calendar-days" onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)} size={14} className="text-indigo-600 hover:scale-110 transition-transform" />
+                                    {isMonthPickerOpen && (
+                                        <div className="popover-base p-2 w-48 left-0 top-7 z-[200]">
+                                            <div className="flex justify-between items-center mb-2 px-1">
+                                                <button onClick={() => setViewDate(new Date(viewDate.getFullYear() - 1, viewDate.getMonth(), 1))}><Icon name="chevrons-left" size={14}/></button>
+                                                <span className="font-black text-[12px]">{viewDate.getFullYear()}년</span>
+                                                <button onClick={() => setViewDate(new Date(viewDate.getFullYear() + 1, viewDate.getMonth(), 1))}><Icon name="chevrons-right" size={14}/></button>
+                                            </div>
+                                            <div className="month-picker-grid">
+                                                {Array.from({length: 12}, (_, i) => (
+                                                    <button key={i} onClick={() => { setViewDate(new Date(viewDate.getFullYear(), i, 1)); setIsMonthPickerOpen(false); }} className={`month-btn ${viewDate.getMonth() === i ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-700'}`}>{i + 1}월</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <h2 className="font-black text-[15px] text-slate-800 tracking-tight truncate">{viewDate.getFullYear()}년 {viewDate.getMonth()+1}월 월별 계획</h2>
+                                    <div className="dday-badge ml-2"><Icon name="flag" size={10} /><span>{data.dDayDate ? `${data.dDayTitle} ${dDayValue}` : "D-Day"}</span></div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isSyncing && <div className="sync-indicator"><div className="loading-spinner"></div><span>동기화 중</span></div>}
+                                    <button onClick={() => setViewDate(new Date())} className="px-2 py-0.5 text-[12px] font-black bg-slate-100 rounded shadow-sm h-[24px]">오늘</button>
+                                    <button onClick={()=>setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1))} className="p-1 hover:bg-white rounded text-slate-400 h-[24px] flex items-center"><Icon name="chevron-left" size={16}/></button>
+                                    <button onClick={()=>setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1))} className="p-1 hover:bg-white rounded text-slate-400 h-[24px] flex items-center"><Icon name="chevron-right" size={16}/></button>
+                                </div>
+                            </header>
+                            <div className="calendar-grid-parent rounded-b-[0.75rem]" style={{ gridTemplateRows: `24px repeat(${calendarDays.length / 7}, 1fr)` }}>
+                                {['월','화','수','목','금','토','일'].map((d,i)=>(<div key={d} className={`header-cell ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-400' : 'text-slate-400'}`}>{d}</div>))}
+                                {calendarDays.map((date, i) => {
+                                    if (!date) return <div key={i} className="table-cell bg-white"></div>;
+                                    const dStr = getLocalDateString(date), dayData = (data.monthlyData || {})[dStr] || { items:[], bgColor: COLORS.BG_WHITE };
+                                    const isHolidayBg = dayData.bgColor === COLORS.BG_RED;
+                                    return (
+                                        <div 
+                                            key={dStr} 
+                                            className={`table-cell group ${dStr === todayStr ? 'today-highlight' : ''}`} 
+                                            style={{ backgroundColor: dayData.bgColor }}
+                                            onMouseEnter={() => setHoveredDate(dStr)}
+                                            onMouseLeave={() => setHoveredDate(null)}
+                                        >
+                                            <div className="flex items-center gap-1 h-[20px] px-0">
+                                                <span className={`text-[12px] font-black ${date.getDay() === 0 || isHolidayBg ? 'text-red-500' : date.getDay() === 6 ? 'text-blue-500' : 'text-slate-400'}`}>{date.getDate()}</span>
+                                                <input type="text" value={dayData.holiday||''} onChange={(e) => updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, holiday: e.target.value}}})} style={{ color: isHolidayBg ? '#ef4444' : '#2563eb' }} className="bg-transparent text-[12px] font-black w-full outline-none truncate" spellCheck={false} />
+                                            </div>
+                                            <div className="flex-grow mt-0.5">
+                                                {(dayData.items || []).map(item => (
+                                                    <MonthlyPlanItem key={item.id} value={item.text} completed={item.completed} color={item.color} onChange={(u)=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: dayData.items.map(it=>it.id===item.id?{...it,...u}:it)}}})} onDelete={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: dayData.items.filter(it=>it.id!==item.id)}}})} />
+                                                ))}
+                                            </div>
+                                            <button onClick={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: [...(dayData.items||[]), {id:Date.now(), text:'', completed:false}]}}})} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 bg-indigo-600 text-white rounded w-[16px] h-[16px] flex items-center justify-center transition-all"><Icon name="plus" size={10}/></button>
+                                            
+                                            {hoveredDate === dStr && (
+                                                <div className="popover-color-picker" style={{ bottom: '4px', right: '4px' }}>
+                                                    <div className="color-dot bg-white" onClick={() => updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_WHITE}}})}></div>
+                                                    <div className="color-dot" style={{ backgroundColor: COLORS.BG_RED }} onClick={() => updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_RED}}})}></div>
+                                                    <div className="color-dot" style={{ backgroundColor: COLORS.BG_BLUE }} onClick={() => updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_BLUE}}})}></div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </section>
+
+                    <div className="remainder-section">
+                        <div className="widget-grid-row">
+                            <section className="glass-card h-[125px] overflow-visible z-[1000]">
+                                <header className="widget-header" style={{ height: '22px' }}><div className="flex items-center gap-1.5"><Icon name="droplets" className="text-blue-600" size={12} /><h2 className="font-black text-[14px]">수분 섭취</h2></div></header>
+                                <div className="flex flex-col items-center justify-start flex-1 pt-[6px] pb-3 relative px-2 gap-1.5">
+                                    <div className="text-[9px] font-black text-slate-400">Goal: {data.waterTarget}ml</div>
+                                    <div className="text-[22px] font-black text-blue-600 leading-none">{waterIntake} ml</div>
+                                    <div className="w-full px-2"><div className="w-full water-bar-custom bg-blue-50 rounded-full border border-blue-100 overflow-hidden shadow-inner h-[8px]"><div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-700" style={{ width: `${Math.min((waterIntake/data.waterTarget)*100, 100)}%` }}></div></div></div>
+                                    <div className="flex gap-1 w-full relative items-center">
+                                        <button onClick={()=>updateData({waterHistory:{...data.waterHistory,[todayStr]:waterIntake+250}})} className="flex-1 bg-blue-50 text-blue-600 h-6 rounded text-[10px] font-black">+250</button>
+                                        <button onClick={()=>updateData({waterHistory:{...data.waterHistory,[todayStr]:waterIntake+500}})} className="flex-1 bg-blue-600 text-white h-6 rounded text-[10px] font-black">+500</button>
+                                        <button onClick={()=>updateData({waterHistory:{...data.waterHistory,[todayStr]:0}})} className="w-6 h-6 bg-slate-50 text-slate-400 rounded flex items-center justify-center"><Icon name="rotate-ccw" size={12}/></button>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="glass-card h-[125px] overflow-hidden relative">
+                                <header className="widget-header" style={{ height: '22px' }}>
+                                    <div className="flex items-center gap-1.5"><Icon name="list-checks" className="text-indigo-600" size={12} /><h2 className="font-black text-[14px]">개인 루틴</h2></div>
+                                    <div className="flex items-center gap-1.5 mr-1">
+                                        <button onClick={()=>addNewItem('personalRoutines')} className="text-slate-300 hover:text-indigo-600 transition-colors"><Icon name="plus" size={13}/></button>
+                                        <button onClick={()=>setConfirmClear('personalRoutines')} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash-2" size={12}/></button>
+                                    </div>
+                                </header>
+                                {confirmClear === 'personalRoutines' && <CardConfirmOverlay onConfirm={()=>{updateData({personalRoutines:[]}); setConfirmClear(null);}} onCancel={()=>setConfirmClear(null)} />}
+                                <div className="flex-grow overflow-y-auto hide-scrollbar px-1 pt-[2px] pb-1">
+                                    <div className="pillar-container">
+                                        <div className="pillar">
+                                            {(data.personalRoutines || []).filter((_,i)=>i%2===0).map(r => (<RoutineItem key={r.id} value={r.text} completed={r.completed} color={r.color} onChange={(u)=>updateData({personalRoutines: data.personalRoutines.map(it=>it.id===r.id?{...it,...u}:it)})} onDelete={()=>updateData({personalRoutines: data.personalRoutines.filter(it=>it.id!==r.id)})} />))}
+                                        </div>
+                                        <div className="pillar">
+                                            {(data.personalRoutines || []).filter((_,i)=>i%2!==0).map(r => (<RoutineItem key={r.id} value={r.text} completed={r.completed} color={r.color} onChange={(u)=>updateData({personalRoutines: data.personalRoutines.map(it=>it.id===r.id?{...it,...u}:it)})} onDelete={()=>updateData({personalRoutines: data.personalRoutines.filter(it=>it.id!==r.id)})} />))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="glass-card h-[125px] overflow-hidden">
+                                <header className="widget-header" style={{ height: '22px' }}><div className="flex items-center gap-1.5"><Icon name="utensils" className="text-orange-500" size={12} /><h2 className="font-black text-[14px]">오늘의 급식</h2></div></header>
+                                <div className="flex-grow overflow-y-auto hide-scrollbar px-2 pt-[2px] pb-1">
+                                    <div className="pillar-container">
+                                        <div className="pillar">{(mealData || []).filter((_,i)=>i%2===0).map((m,i)=>(<div key={i} className="text-[12px] font-black text-slate-700 truncate leading-[1.52]">• {m}</div>))}</div>
+                                        <div className="pillar">{(mealData || []).filter((_,i)=>i%2!==0).map((m,i)=>(<div key={i} className="text-[12px] font-black text-slate-700 truncate leading-[1.52]">• {m}</div>))}</div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="glass-card h-[125px] overflow-hidden relative">
+                                <header className="widget-header" style={{ height: '22px' }}>
+                                    <div className="flex items-center gap-1.5"><Icon name="check-square" className="text-emerald-600" size={12} /><h2 className="font-black text-[14px]">체크리스트</h2></div>
+                                    <div className="flex items-center gap-1.5 mr-1">
+                                        <button onClick={()=>addNewItem('routines')} className="text-slate-300 hover:text-emerald-600 transition-colors"><Icon name="plus" size={13}/></button>
+                                        <button onClick={()=>setConfirmClear('routines')} className="text-slate-300 hover:text-red-500 transition-colors"><Icon name="trash-2" size={12}/></button>
+                                    </div>
+                                </header>
+                                {confirmClear === 'routines' && <CardConfirmOverlay onConfirm={()=>{updateData({routines:[]}); setConfirmClear(null);}} onCancel={()=>setConfirmClear(null)} />}
+                                <div className="flex-grow overflow-y-auto custom-scrollbar px-1 pt-[2px] pb-1">
+                                    {(data.routines || []).map(r => (<ChecklistItem key={r.id} value={r.text} completed={r.completed} color={r.color} onChange={(u)=>updateData({routines: data.routines.map(it=>it.id===r.id?{...it,...u}:it)})} onDelete={()=>updateData({routines: data.routines.filter(it=>it.id!==r.id)})} />))}
+                                </div>
+                            </section>
+                        </div>
+
+                        <div className="widget-grid-row">
+                            <section className="glass-card h-[135px] overflow-visible transition-all z-10">
+                                <header className="widget-header" style={{ height: '22px' }}>
+                                    <div className="flex items-center gap-1.5"><Icon name="link" className="text-indigo-500" size={12} /><h2 className="font-black text-[14px]">링크</h2></div>
+                                    <button onClick={()=>setIsLinkAddOpen(!isLinkAddOpen)} className="text-slate-300 hover:text-indigo-600 transition-colors mr-1"><Icon name="plus" size={13}/></button>
+                                </header>
+                                <div className="flex-grow relative overflow-y-auto custom-scrollbar px-2 pt-[2px] pb-1">
+                                    {isLinkAddOpen && (
+                                        <div className="absolute inset-0 bg-white/95 z-[50] flex flex-col p-2">
+                                            <h4 className="font-black text-[11px] mb-1">새 링크 추가</h4>
+                                            <input type="text" placeholder="이름" className="w-full p-1 mb-1 border rounded text-[10px] font-black outline-none" value={tempLink.name} onChange={e=>setTempLink({...tempLink, name: e.target.value})} />
+                                            <input type="text" placeholder="URL" className="w-full p-1 mb-2 border rounded text-[10px] font-black outline-none" value={tempLink.url} onChange={e=>setTempLink({...tempLink, url: e.target.value})} />
+                                            <div className="flex gap-1">
+                                                <button onClick={()=>setIsLinkAddOpen(false)} className="flex-1 bg-slate-100 h-6 rounded text-[10px] font-black">취소</button>
+                                                <button onClick={addNewLink} className="flex-1 bg-indigo-600 text-white h-6 rounded text-[10px] font-black">추가</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {(data.links || []).map(link => (
+                                        <div key={link.id} className="link-item-row group">
+                                            <button onClick={()=>window.open(link.url,'_blank')} className="link-text-btn truncate font-black">{link.text}</button>
+                                            <button onClick={()=>updateData({links: data.links.filter(l=>l.id!==link.id)})} className="text-slate-200 hover:text-red-500 ml-auto opacity-0 group-hover/item:opacity-100 transition-opacity"><Icon name="x" size={8}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                            
+                            <section className="glass-card h-[135px] overflow-hidden relative transition-all z-10">
+                                <header className="widget-header" style={{ height: '22px' }}><div className="flex items-center gap-1.5"><Icon name="clipboard-list" className="text-purple-600" size={12} /><h2 className="font-black text-[14px]">평가 계획</h2></div></header>
+                                <div className="flex-grow overflow-y-auto custom-scrollbar" style={{ height: '110px' }}>
+                                    <table className="eval-table">
+                                        <thead><tr><th style={{ width: '20px' }}>V</th><th style={{ width: '35px' }}>과목</th><th style={{ width: '25px' }}>단원</th><th>평가 요소</th><th style={{ width: '18px' }}>1</th><th style={{ width: '18px' }}>2</th><th style={{ width: '18px' }}>3</th><th style={{ width: '18px' }}>4</th></tr></thead>
+                                        <tbody>
+                                            {prioritizedEvalData.map((row, idx) => {
+                                                const isF = (data.completedEvalRows || []).includes(row.sheetRow);
+                                                return (
+                                                    <tr key={`${row.sheetRow}-${idx}`} className={isF ? 'opacity-50' : ''}>
+                                                        <td className="cursor-pointer" onClick={() => toggleEvalDone(row.sheetRow)}><Icon name={isF ? "check-circle-2" : "circle"} className={isF ? "text-green-500" : "text-slate-300"} size={14} /></td>
+                                                        <td className={`font-black ${isF ? '' : getSubjectColor(row.subject)}`}>{row.subject}</td>
+                                                        <td className="truncate text-[10px]">{row.unit}</td>
+                                                        <FactorCell factor={row.factor} isFinished={isF} />
+                                                        {['n1', 'n2', 'n3', 'n4'].map(col => (<td key={col} className="cursor-pointer hover:bg-slate-50 font-black text-[10px]" onClick={() => cycleEvalResult(row, col)}>{row[col]}</td>))}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+
+                            <section className="glass-card h-[135px] overflow-y-auto hide-scrollbar">
+                                <header className="widget-header" style={{ height: '22px' }}>
+                                    <div className="flex items-center gap-1.5">
+                                        <Icon name="wallet" className="text-blue-500" size={12} />
+                                        <h2 className="font-black text-[14px]">예산 현황</h2>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => window.open(BUDGET_EXTERNAL_LINK, '_blank')} className="p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-500 transition-colors" title="예산 관리 사이트"><Icon name="external-link" size={12} /></button>
+                                        <button onClick={fetchBudgetData} className="mr-1 p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-blue-500 transition-colors" title="새로고침"><Icon name="rotate-ccw" size={12} /></button>
+                                    </div>
+                                </header>
+                                <table className="budget-table">
+                                    <thead><tr><th>예산명</th><th>잔액</th></tr></thead>
+                                    <tbody>
+                                        {budgetData.budgets && budgetData.budgets.length > 0 ? (
+                                            budgetData.budgets.map((b, i) => (
+                                                <tr key={i}>
+                                                    <td className="text-left px-2">{b.name}</td>
+                                                    <td className="text-blue-600 font-black text-right px-2">{Number(b.balance || 0).toLocaleString()}원</td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr><td colSpan="2" className="text-slate-300 py-4">항목 없음</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </section>
+
+                            <section className="glass-card h-[135px] relative">
+                                <header className="widget-header" style={{ height: '22px' }}>
+                                    <div className="flex items-center gap-1.5"><Icon name="sticky-note" className="text-amber-600" size={12} /><h2 className="font-black text-[14px]">업무 메모</h2></div>
+                                    <button onClick={()=>setConfirmClear('generalMemo')} className="text-slate-300 hover:text-red-500 mr-1 transition-colors"><Icon name="trash-2" size={12}/></button>
+                                </header>
+                                {confirmClear === 'generalMemo' && <CardConfirmOverlay onConfirm={()=>{updateData({generalMemo:''}); setConfirmClear(null);}} onCancel={()=>setConfirmClear(null)} />}
+                                <textarea className="w-full flex-grow bg-transparent pt-[2px] pb-[4px] px-2 text-[12px] font-black outline-none resize-none" value={data.generalMemo} onChange={(e)=>updateData({generalMemo: e.target.value})} spellCheck={false} />
+                            </section>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />);
+    </script>
+</body>
+</html>

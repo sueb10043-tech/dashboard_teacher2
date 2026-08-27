@@ -237,30 +237,25 @@
             
             return (
                 <div 
-                    style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}
-                    className="group/item relative mb-[1.5px] overflow-visible"
+                    className="flex w-full group/item relative mb-[1.5px] items-start overflow-visible"
                     onMouseEnter={() => setIsHovered(true)}
                     onMouseLeave={() => setIsHovered(false)}
                 >
-                    <div style={{ display: 'table-cell', verticalAlign: 'middle', width: '16px' }}>
+                    <div className="checkbox-container flex items-center justify-center shrink-0 w-[16px] mr-1.5" style={{ height: '18px' }}>
                         <input type="checkbox" checked={!!completed} onChange={(e) => onChange({completed: e.target.checked})} className="compact-checkbox" />
                     </div>
-                    <div style={{ display: 'table-cell', verticalAlign: 'middle' }}>
-                        <textarea 
-                            ref={textareaRef} 
-                            rows={1} 
-                            onMouseDown={(e) => e.stopPropagation()} 
-                            spellCheck={false} 
-                            className={`item-input-base text-[12px] font-black leading-[1.5] ${completed ? 'strikethrough-line' : ''}`} 
-                            style={{ color: completed ? '' : (color || COLORS.TXT_BLACK), display: 'block' }} 
-                            value={value} 
-                            onChange={(e) => onChange({text: e.target.value})} 
-                            onInput={adjustHeight} 
-                        />
-                    </div>
-                    <div style={{ display: 'table-cell', verticalAlign: 'middle', width: '14px' }}>
-                        <button onClick={onDelete} className="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 p-0 m-0 shrink-0 transition-opacity flex items-center justify-center w-full"><Icon name="x" size={11} /></button>
-                    </div>
+                    <textarea 
+                        ref={textareaRef} 
+                        rows={1} 
+                        onMouseDown={(e) => e.stopPropagation()} 
+                        spellCheck={false} 
+                        className={`item-input-base text-[12px] font-black leading-[1.5] flex-1 ${completed ? 'strikethrough-line' : ''}`} 
+                        style={{ color: completed ? '' : (color || COLORS.TXT_BLACK) }} 
+                        value={value} 
+                        onChange={(e) => onChange({text: e.target.value})} 
+                        onInput={adjustHeight} 
+                    />
+                    <button onClick={onDelete} className="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 px-0 m-0 mr-1 shrink-0 transition-opacity flex items-center justify-center" style={{ height: '18px' }}><Icon name="x" size={11} /></button>
                     
                     {isHovered && !completed && (
                         <div className="popover-color-picker" style={{ top: '100%', left: '16px', marginTop: '2px' }}>

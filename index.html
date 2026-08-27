@@ -150,6 +150,12 @@
         .month-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; }
         .month-btn { padding: 4px; border-radius: 6px; text-align: center; font-weight: 800; font-size: 11px; transition: all 0.1s; }
         .month-btn:hover { background: #e0e7ff; color: #4338ca; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 5000; display: flex; align-items: center; justify-content: center; }
+        .modal-box { background: white; border-radius: 0.75rem; box-shadow: 0 20px 40px rgba(0,0,0,0.25); padding: 16px; width: 260px; animation: popFade 0.12s ease-out; }
+        .modal-label { font-size: 10px; font-weight: 900; color: #94a3b8; display: block; margin-bottom: 2px; }
+        .modal-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; font-size: 12px; font-weight: 800; outline: none; }
+        .attendance-tag { font-size: 9px; font-weight: 800; line-height: 1.4; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
     </style>
 </head>
 <body>
@@ -162,6 +168,7 @@
         const DASHBOARD_SHEET = "교사용_바탕화면";
         const BUDGET_SHEET = "교사용_예산";
         const EVAL_SHEET = "교사용_평가";
+        const ATTENDANCE_SHEET = "교사용_출결 및 복무";
         const SAVE_RANGE = "A3:G3";
         const BUDGET_EXTERNAL_LINK = "https://sueb10043-tech.github.io/schoolbudget/";
 
@@ -339,6 +346,11 @@
             const [isDdayPickerOpen, setIsDdayPickerOpen] = useState(false);
             const [tempDday, setTempDday] = useState({ title: '', date: '' });
             const [isLinkEditMode, setIsLinkEditMode] = useState(false);
+            const [attendanceRecords, setAttendanceRecords] = useState([]);
+            const [attendanceModal, setAttendanceModal] = useState(null);
+            const [attendanceForm, setAttendanceForm] = useState({ studentNum: '1', absenceType: '결석', absenceReason: '출석인정', periods: [1,2,3,4,5] });
+            const [dutyModal, setDutyModal] = useState(null);
+            const [dutyForm, setDutyForm] = useState({ dutyType: '출장', startTime: '', endTime: '' });
 
             const todayStr = useMemo(() => getLocalDateString(now), [now]);
 
@@ -510,9 +522,10 @@
                     await loadFromCloud();
                     fetchBudgetData();
                     fetchEvalData();
+                    loadAttendanceData();
                 };
                 init();
-            }, [loadFromCloud, fetchBudgetData, fetchEvalData]);
+            }, [loadFromCloud, fetchBudgetData, fetchEvalData, loadAttendanceData]);
 
             const prioritizedEvalData = useMemo(() => {
                 if (!evalData.length) return [];
@@ -559,6 +572,101 @@
             const clearDday = () => {
                 updateData({ dDayTitle: '', dDayDate: '' });
                 setIsDdayPickerOpen(false);
+            };
+
+            // ★ 출결/복무 데이터: JSON 덩어리가 아니라 시트에 한 줄씩 구분 저장/로드
+            const ATTENDANCE_HEADERS = ['ID','날짜','구분','출석번호','출결형식','출석유형','결시교시','복무유형','시작시간','종료시간'];
+            const ATTENDANCE_ROW_CAPACITY = 200;
+
+            const recordToRow = (r) => [
+                r.id, r.date, r.type,
+                r.type === 'attendance' ? r.studentNum : '',
+                r.type === 'attendance' ? r.absenceType : '',
+                r.type === 'attendance' ? r.absenceReason : '',
+                r.type === 'attendance' ? (r.periods || []).join(',') : '',
+                r.type === 'duty' ? r.dutyType : '',
+                r.type === 'duty' ? r.startTime : '',
+                r.type === 'duty' ? r.endTime : ''
+            ];
+
+            const rowToRecord = (row) => {
+                const [id, date, type, studentNum, absenceType, absenceReason, periodsStr, dutyType, startTime, endTime] = row;
+                if (!id || !date || !type) return null;
+                if (type === 'attendance') {
+                    return { id: id, date: String(date), type: 'attendance', studentNum: String(studentNum || ''), absenceType: String(absenceType || ''), absenceReason: String(absenceReason || ''), periods: periodsStr ? String(periodsStr).split(',').filter(Boolean).map(Number) : [] };
+                } else if (type === 'duty') {
+                    return { id: id, date: String(date), type: 'duty', dutyType: String(dutyType || ''), startTime: String(startTime || ''), endTime: String(endTime || '') };
+                }
+                return null;
+            };
+
+            const loadAttendanceData = useCallback(async () => {
+                try {
+                    const res = await fetch(`${GAS_URL}?sheet=${encodeURIComponent(ATTENDANCE_SHEET)}&range=A2:J${1 + ATTENDANCE_ROW_CAPACITY}`, {
+                        credentials: 'omit'
+                    });
+                    const result = await res.json();
+                    let values = typeof result === 'string' ? JSON.parse(result) : result;
+                    if (Array.isArray(values)) {
+                        setAttendanceRecords(values.map(rowToRecord).filter(Boolean));
+                    } else {
+                        setAttendanceRecords([]);
+                    }
+                } catch (e) { console.error("Attendance Load Error:", e); setAttendanceRecords([]); }
+            }, []);
+
+            const saveAttendanceToCloud = useCallback(async () => {
+                if (isInitialLoading || !GAS_URL) return;
+                try {
+                    const rows = attendanceRecords.map(recordToRow);
+                    while (rows.length < ATTENDANCE_ROW_CAPACITY) rows.push(['', '', '', '', '', '', '', '', '', '']);
+                    const allRows = [ATTENDANCE_HEADERS, ...rows];
+                    const targetUrl = `${GAS_URL}?sheet=${encodeURIComponent(ATTENDANCE_SHEET)}&range=A1:J${1 + ATTENDANCE_ROW_CAPACITY}`;
+                    await fetch(targetUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ data: allRows }) });
+                } catch (e) { console.error("Attendance Save Error:", e); }
+            }, [attendanceRecords, isInitialLoading]);
+
+            useEffect(() => {
+                const timer = setTimeout(() => { if (!isInitialLoading) saveAttendanceToCloud(); }, 1500);
+                return () => clearTimeout(timer);
+            }, [attendanceRecords, isInitialLoading, saveAttendanceToCloud]);
+
+            const openAttendanceModal = (dStr, record) => {
+                if (record) {
+                    setAttendanceForm({ studentNum: record.studentNum, absenceType: record.absenceType, absenceReason: record.absenceReason, periods: record.periods || [] });
+                    setAttendanceModal({ date: dStr, editId: record.id });
+                } else {
+                    setAttendanceForm({ studentNum: '1', absenceType: '결석', absenceReason: '출석인정', periods: [1,2,3,4,5] });
+                    setAttendanceModal({ date: dStr, editId: null });
+                }
+            };
+
+            const saveAttendance = () => {
+                if (attendanceModal.editId) {
+                    setAttendanceRecords(prev => prev.map(r => r.id === attendanceModal.editId ? { ...r, ...attendanceForm } : r));
+                } else {
+                    setAttendanceRecords(prev => [...prev, { id: Date.now(), date: attendanceModal.date, type: 'attendance', ...attendanceForm }]);
+                }
+                setAttendanceModal(null);
+            };
+
+            const openDutyModal = (dStr, record) => {
+                if (record) {
+                    setDutyForm({ dutyType: record.dutyType, startTime: record.startTime, endTime: record.endTime });
+                    setDutyModal({ date: dStr, editId: record.id });
+                } else {
+                    setDutyForm({ dutyType: '출장', startTime: '', endTime: '' });
+                    setDutyModal({ date: dStr, editId: null });
+                }
+            };
+
+            const saveDuty = () => {
+                if (dutyModal.editId) {
+                    setAttendanceRecords(prev => prev.map(r => r.id === dutyModal.editId ? { ...r, ...dutyForm } : r));
+                } else {
+                    setAttendanceRecords(prev => [...prev, { id: Date.now(), date: dutyModal.date, type: 'duty', ...dutyForm }]);
+                }
+                setDutyModal(null);
             };
 
             const addNewLink = () => {
@@ -641,7 +749,28 @@
                                                     <MonthlyPlanItem key={item.id} value={item.text} completed={item.completed} color={item.color} onChange={(u)=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: dayData.items.map(it=>it.id===item.id?{...it,...u}:it)}}})} onDelete={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: dayData.items.filter(it=>it.id!==item.id)}}})} />
                                                 ))}
                                             </div>
-                                            <button onClick={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: [...(dayData.items||[]), {id:Date.now(), text:'', completed:false}]}}})} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 bg-indigo-600 text-white rounded w-[16px] h-[16px] flex items-center justify-center transition-all"><Icon name="plus" size={10}/></button>
+                                            {attendanceRecords.filter(r => r.date === dStr).length > 0 && (
+                                                <div className="mt-auto pt-0.5 border-t border-slate-100">
+                                                    {attendanceRecords.filter(r => r.date === dStr).map(r => (
+                                                        <div key={r.id} className="attendance-tag group/att" style={{ color: r.type === 'attendance' ? '#059669' : '#b45309' }}>
+                                                            <span className="truncate">
+                                                                {r.type === 'attendance'
+                                                                    ? `${r.studentNum}번 ${r.absenceType}(${r.absenceReason})${(r.periods && r.periods.length) ? ' ' + r.periods.join(',') + '교시' : ''}`
+                                                                    : `${r.dutyType} ${r.startTime || ''}${r.endTime ? '~' + r.endTime : ''}`}
+                                                            </span>
+                                                            <div className="flex items-center gap-1 opacity-0 group-hover/att:opacity-100 transition-opacity shrink-0">
+                                                                <button onClick={() => r.type === 'attendance' ? openAttendanceModal(dStr, r) : openDutyModal(dStr, r)} className="text-slate-300 hover:text-indigo-500"><Icon name="pencil" size={8}/></button>
+                                                                <button onClick={() => setAttendanceRecords(prev => prev.filter(x => x.id !== r.id))} className="text-slate-300 hover:text-red-500"><Icon name="x" size={8}/></button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-all z-20">
+                                                <button onClick={() => openDutyModal(dStr)} className="bg-amber-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center text-[10px] font-black leading-none">ㅂ</button>
+                                                <button onClick={() => openAttendanceModal(dStr)} className="bg-emerald-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center text-[10px] font-black leading-none">ㅊ</button>
+                                                <button onClick={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: [...(dayData.items||[]), {id:Date.now(), text:'', completed:false}]}}})} className="p-0.5 bg-indigo-600 text-white rounded w-[16px] h-[16px] flex items-center justify-center"><Icon name="plus" size={10}/></button>
+                                            </div>
                                             
                                             {hoveredDate === dStr && (
                                                 <div className="popover-color-picker" style={{ bottom: '4px', right: '4px' }}>
@@ -817,6 +946,87 @@
                             </section>
                         </div>
                     </div>
+
+                    {attendanceModal && (
+                        <div className="modal-overlay">
+                            <div className="modal-box">
+                                <h3 className="font-black text-[13px] mb-3 text-slate-800">출결 입력 <span className="text-slate-400 font-bold text-[11px]">({attendanceModal.date})</span></h3>
+                                <div className="flex flex-col gap-2.5">
+                                    <div>
+                                        <label className="modal-label">번호</label>
+                                        <select className="modal-input" value={attendanceForm.studentNum} onChange={e=>setAttendanceForm({...attendanceForm, studentNum: e.target.value})}>
+                                            {Array.from({length:25},(_,i)=>i+1).map(n=>(<option key={n} value={n}>{n}번</option>))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="modal-label">출결 형식</label>
+                                        <select className="modal-input" value={attendanceForm.absenceType} onChange={e=>{
+                                            const val = e.target.value;
+                                            setAttendanceForm(prev=>({...prev, absenceType: val, periods: val === '결석' ? [1,2,3,4,5] : []}));
+                                        }}>
+                                            {['결석','지각','조퇴','결과'].map(t=>(<option key={t} value={t}>{t}</option>))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="modal-label">출석 유형</label>
+                                        <select className="modal-input" value={attendanceForm.absenceReason} onChange={e=>setAttendanceForm({...attendanceForm, absenceReason: e.target.value})}>
+                                            {['출석인정','병결','미인정','기타'].map(t=>(<option key={t} value={t}>{t}</option>))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="modal-label">결시 교시</label>
+                                        <div className="flex gap-2.5 mt-1">
+                                            {[1,2,3,4,5].map(p=>(
+                                                <label key={p} className="flex items-center gap-0.5 text-[11px] font-black text-slate-700">
+                                                    <input type="checkbox" className="compact-checkbox" checked={attendanceForm.periods.includes(p)} onChange={(e)=>{
+                                                        setAttendanceForm(prev=>({
+                                                            ...prev,
+                                                            periods: e.target.checked ? [...prev.periods, p].sort((a,b)=>a-b) : prev.periods.filter(x=>x!==p)
+                                                        }));
+                                                    }} />
+                                                    {p}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1.5 mt-4">
+                                    <button onClick={()=>setAttendanceModal(null)} className="flex-1 h-7 bg-slate-100 text-slate-600 rounded font-black text-[11px]">취소</button>
+                                    <button onClick={saveAttendance} className="flex-1 h-7 bg-emerald-600 text-white rounded font-black text-[11px]">저장</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {dutyModal && (
+                        <div className="modal-overlay">
+                            <div className="modal-box">
+                                <h3 className="font-black text-[13px] mb-3 text-slate-800">복무 입력 <span className="text-slate-400 font-bold text-[11px]">({dutyModal.date})</span></h3>
+                                <div className="flex flex-col gap-2.5">
+                                    <div>
+                                        <label className="modal-label">복무 유형</label>
+                                        <select className="modal-input" value={dutyForm.dutyType} onChange={e=>setDutyForm({...dutyForm, dutyType: e.target.value})}>
+                                            {['출장','조퇴','병가'].map(t=>(<option key={t} value={t}>{t}</option>))}
+                                        </select>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <label className="modal-label">시작 시간</label>
+                                            <input type="time" className="modal-input" value={dutyForm.startTime} onChange={e=>setDutyForm({...dutyForm, startTime: e.target.value})} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="modal-label">종료 시간</label>
+                                            <input type="time" className="modal-input" value={dutyForm.endTime} onChange={e=>setDutyForm({...dutyForm, endTime: e.target.value})} />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1.5 mt-4">
+                                    <button onClick={()=>setDutyModal(null)} className="flex-1 h-7 bg-slate-100 text-slate-600 rounded font-black text-[11px]">취소</button>
+                                    <button onClick={saveDuty} className="flex-1 h-7 bg-amber-600 text-white rounded font-black text-[11px]">저장</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }

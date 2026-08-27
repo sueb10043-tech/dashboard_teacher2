@@ -154,7 +154,7 @@
         .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 5000; display: flex; align-items: center; justify-content: center; }
         .modal-box { background: white; border-radius: 0.75rem; box-shadow: 0 20px 40px rgba(0,0,0,0.25); padding: 16px; width: 260px; animation: popFade 0.12s ease-out; }
         .modal-label { font-size: 10px; font-weight: 900; color: #94a3b8; display: block; margin-bottom: 2px; }
-        .modal-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; font-size: 12px; font-weight: 800; outline: none; }
+        .modal-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; font-size: 12px; font-weight: 800; outline: none; background: white; color: #1e293b; font-family: inherit; cursor: pointer; text-align: left; }
         .attendance-tag { font-size: 9px; font-weight: 800; line-height: 1.4; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
     </style>
 </head>
@@ -217,6 +217,26 @@
                     <div ref={textRef} className="truncate w-full selectable-text">{content}</div>
                     <span className={`eval-tooltip-text ${showTooltip ? 'show' : ''}`}>{content}</span>
                 </td>
+            );
+        };
+
+        const CustomSelect = ({ value, options, onChange }) => {
+            const [open, setOpen] = useState(false);
+            const current = options.find(o => String(o.value) === String(value));
+            return (
+                <div className="relative">
+                    <button type="button" onClick={() => setOpen(!open)} className="modal-input flex items-center justify-between">
+                        <span>{current ? current.label : value}</span>
+                        <Icon name="chevron-down" size={10} className="text-slate-400 shrink-0" />
+                    </button>
+                    {open && (
+                        <div className="popover-base p-1 w-full max-h-40 overflow-y-auto custom-scrollbar" style={{ top: '100%', left: 0, marginTop: '2px' }}>
+                            {options.map(opt => (
+                                <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false); }} className={`block w-full text-left px-2 py-1 rounded text-[11px] font-black hover:bg-indigo-50 ${String(opt.value) === String(value) ? 'text-indigo-600 bg-indigo-50' : 'text-slate-700'}`}>{opt.label}</button>
+                            ))}
+                        </div>
+                    )}
+                </div>
             );
         };
 
@@ -954,24 +974,29 @@
                                 <div className="flex flex-col gap-2.5">
                                     <div>
                                         <label className="modal-label">번호</label>
-                                        <select className="modal-input" value={attendanceForm.studentNum} onChange={e=>setAttendanceForm({...attendanceForm, studentNum: e.target.value})}>
-                                            {Array.from({length:25},(_,i)=>i+1).map(n=>(<option key={n} value={n}>{n}번</option>))}
-                                        </select>
+                                        <CustomSelect
+                                            value={attendanceForm.studentNum}
+                                            options={Array.from({length:25},(_,i)=>({ value: String(i+1), label: `${i+1}번` }))}
+                                            onChange={(val)=>setAttendanceForm({...attendanceForm, studentNum: val})}
+                                        />
                                     </div>
                                     <div>
                                         <label className="modal-label">출결 형식</label>
-                                        <select className="modal-input" value={attendanceForm.absenceType} onChange={e=>{
-                                            const val = e.target.value;
-                                            setAttendanceForm(prev=>({...prev, absenceType: val, periods: val === '결석' ? [1,2,3,4,5] : []}));
-                                        }}>
-                                            {['결석','지각','조퇴','결과'].map(t=>(<option key={t} value={t}>{t}</option>))}
-                                        </select>
+                                        <CustomSelect
+                                            value={attendanceForm.absenceType}
+                                            options={['결석','지각','조퇴','결과'].map(t=>({ value: t, label: t }))}
+                                            onChange={(val)=>{
+                                                setAttendanceForm(prev=>({...prev, absenceType: val, periods: val === '결석' ? [1,2,3,4,5] : []}));
+                                            }}
+                                        />
                                     </div>
                                     <div>
                                         <label className="modal-label">출석 유형</label>
-                                        <select className="modal-input" value={attendanceForm.absenceReason} onChange={e=>setAttendanceForm({...attendanceForm, absenceReason: e.target.value})}>
-                                            {['출석인정','병결','미인정','기타'].map(t=>(<option key={t} value={t}>{t}</option>))}
-                                        </select>
+                                        <CustomSelect
+                                            value={attendanceForm.absenceReason}
+                                            options={['출석인정','병결','미인정','기타'].map(t=>({ value: t, label: t }))}
+                                            onChange={(val)=>setAttendanceForm({...attendanceForm, absenceReason: val})}
+                                        />
                                     </div>
                                     <div>
                                         <label className="modal-label">결시 교시</label>
@@ -1005,9 +1030,11 @@
                                 <div className="flex flex-col gap-2.5">
                                     <div>
                                         <label className="modal-label">복무 유형</label>
-                                        <select className="modal-input" value={dutyForm.dutyType} onChange={e=>setDutyForm({...dutyForm, dutyType: e.target.value})}>
-                                            {['출장','조퇴','병가'].map(t=>(<option key={t} value={t}>{t}</option>))}
-                                        </select>
+                                        <CustomSelect
+                                            value={dutyForm.dutyType}
+                                            options={['출장','조퇴','병가'].map(t=>({ value: t, label: t }))}
+                                            onChange={(val)=>setDutyForm({...dutyForm, dutyType: val})}
+                                        />
                                     </div>
                                     <div className="flex gap-2">
                                         <div className="flex-1">

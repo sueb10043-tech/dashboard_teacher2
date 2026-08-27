@@ -376,7 +376,7 @@
             const [isInitialLoading, setIsInitialLoading] = useState(true);
             const [isSyncing, setIsSyncing] = useState(false);
             const [viewDate, setViewDate] = useState(new Date());
-            const [hoveredDate, setHoveredDate] = useState(null);
+            const [colorPickerDate, setColorPickerDate] = useState(null);
             const [confirmClear, setConfirmClear] = useState(null);
             const [isLinkAddOpen, setIsLinkAddOpen] = useState(false);
             const [tempLink, setTempLink] = useState({ name: '', url: 'https://' });
@@ -790,8 +790,6 @@
                                             key={dStr} 
                                             className={`table-cell group ${dStr === todayStr ? 'today-highlight' : ''}`} 
                                             style={{ backgroundColor: dayData.bgColor }}
-                                            onMouseEnter={() => setHoveredDate(dStr)}
-                                            onMouseLeave={() => setHoveredDate(null)}
                                         >
                                             <div className="flex items-center gap-1 h-[20px] px-0">
                                                 <span className={`text-[12px] font-black ${date.getDay() === 0 || isHolidayBg ? 'text-red-500' : date.getDay() === 6 ? 'text-blue-500' : 'text-slate-400'}`}>{date.getDate()}</span>

@@ -959,23 +959,23 @@
                                 </header>
                                 <div className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1">
                                     {openAttendanceSummaryList.map(r => (
-                                        <div key={r.id} className="flex items-center gap-1 text-[10px] font-black text-slate-700 leading-[1.4] mb-0.5">
+                                        <div key={r.id} className="flex items-center gap-1 text-[11.5px] font-black text-slate-700 leading-[1.4] mb-0.5">
                                             <span className="truncate flex-1">{getStudentLabel(r.studentNum)} {r.absenceType}({r.absenceReason})</span>
                                             <label className="flex items-center gap-0.5 shrink-0 text-slate-500">
-                                                <input type="checkbox" className="compact-checkbox" checked={!!r.docSubmitted} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, docSubmitted: e.target.checked}:x))} />서
+                                                <input type="checkbox" className="compact-checkbox" checked={!!r.docSubmitted} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, docSubmitted: e.target.checked}:x))} />서류 제출
                                             </label>
                                             <label className="flex items-center gap-0.5 shrink-0 text-slate-500">
-                                                <input type="checkbox" className="compact-checkbox" checked={!!r.neisEntered} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, neisEntered: e.target.checked}:x))} />나
+                                                <input type="checkbox" className="compact-checkbox" checked={!!r.neisEntered} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, neisEntered: e.target.checked}:x))} />나이스
                                             </label>
                                         </div>
                                     ))}
                                     {dutyMonthlyCounts.map(({dutyType, count}) => (
-                                        <div key={dutyType} className="text-[10px] font-black text-amber-700 leading-[1.4]">
+                                        <div key={dutyType} className="text-[11.5px] font-black text-amber-700 leading-[1.4]">
                                             {currentMonthLabel} {dutyType} {count}회
                                         </div>
                                     ))}
                                     {openAttendanceSummaryList.length === 0 && dutyMonthlyCounts.length === 0 && (
-                                        <div className="text-[10px] font-bold text-slate-300 text-center pt-2">기록 없음</div>
+                                        <div className="text-[11.5px] font-bold text-slate-300 text-center pt-2">기록 없음</div>
                                     )}
                                 </div>
                             </section>

@@ -365,6 +365,7 @@
             const [tempDday, setTempDday] = useState({ title: '', date: '' });
             const [isLinkEditMode, setIsLinkEditMode] = useState(false);
             const [attendanceRecords, setAttendanceRecords] = useState([]);
+            const [isAttendanceLoaded, setIsAttendanceLoaded] = useState(false);
             const [attendanceModal, setAttendanceModal] = useState(null);
             const [attendanceForm, setAttendanceForm] = useState({ studentNum: '1', absenceType: '결석', absenceReason: '출석인정', periods: [1,2,3,4,5] });
             const [dutyModal, setDutyModal] = useState(null);
@@ -631,10 +632,11 @@
                         setAttendanceRecords([]);
                     }
                 } catch (e) { console.error("Attendance Load Error:", e); setAttendanceRecords([]); }
+                finally { setIsAttendanceLoaded(true); }
             }, []);
 
             const saveAttendanceToCloud = useCallback(async () => {
-                if (isInitialLoading || !GAS_URL) return;
+                if (!isAttendanceLoaded || !GAS_URL) return;
                 try {
                     const rows = attendanceRecords.map(recordToRow);
                     while (rows.length < ATTENDANCE_ROW_CAPACITY) rows.push(['', '', '', '', '', '', '', '', '', '']);
@@ -642,12 +644,12 @@
                     const targetUrl = `${GAS_URL}?sheet=${encodeURIComponent(ATTENDANCE_SHEET)}&range=A1:J${1 + ATTENDANCE_ROW_CAPACITY}`;
                     await fetch(targetUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ data: allRows }) });
                 } catch (e) { console.error("Attendance Save Error:", e); }
-            }, [attendanceRecords, isInitialLoading]);
+            }, [attendanceRecords, isAttendanceLoaded]);
 
             useEffect(() => {
-                const timer = setTimeout(() => { if (!isInitialLoading) saveAttendanceToCloud(); }, 1500);
+                const timer = setTimeout(() => { if (isAttendanceLoaded) saveAttendanceToCloud(); }, 1500);
                 return () => clearTimeout(timer);
-            }, [attendanceRecords, isInitialLoading, saveAttendanceToCloud]);
+            }, [attendanceRecords, isAttendanceLoaded, saveAttendanceToCloud]);
 
             const openAttendanceModal = (dStr, record) => {
                 if (record) {
@@ -1048,94 +1050,6 @@
                             </section>
                         </div>
                     </div>
-
-                    {attendanceModal && (
-                        <div className="modal-overlay">
-                            <div className="modal-box">
-                                <h3 className="font-black text-[13px] mb-3 text-slate-800">출결 입력 <span className="text-slate-400 font-bold text-[11px]">({attendanceModal.date})</span></h3>
-                                <div className="flex flex-col gap-2.5">
-                                    <div>
-                                        <label className="modal-label">번호</label>
-                                        <CustomSelect
-                                            value={attendanceForm.studentNum}
-                                            options={Array.from({length:25},(_,i)=>({ value: String(i+1), label: `${i+1}번` }))}
-                                            onChange={(val)=>setAttendanceForm({...attendanceForm, studentNum: val})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="modal-label">출결 형식</label>
-                                        <CustomSelect
-                                            value={attendanceForm.absenceType}
-                                            options={['결석','지각','조퇴','결과'].map(t=>({ value: t, label: t }))}
-                                            onChange={(val)=>{
-                                                setAttendanceForm(prev=>({...prev, absenceType: val, periods: val === '결석' ? [1,2,3,4,5] : []}));
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="modal-label">출석 유형</label>
-                                        <CustomSelect
-                                            value={attendanceForm.absenceReason}
-                                            options={['출석인정','병결','미인정','기타'].map(t=>({ value: t, label: t }))}
-                                            onChange={(val)=>setAttendanceForm({...attendanceForm, absenceReason: val})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="modal-label">결시 교시</label>
-                                        <div className="flex gap-2.5 mt-1">
-                                            {[1,2,3,4,5].map(p=>(
-                                                <label key={p} className="flex items-center gap-0.5 text-[11px] font-black text-slate-700">
-                                                    <input type="checkbox" className="compact-checkbox" checked={attendanceForm.periods.includes(p)} onChange={(e)=>{
-                                                        setAttendanceForm(prev=>({
-                                                            ...prev,
-                                                            periods: e.target.checked ? [...prev.periods, p].sort((a,b)=>a-b) : prev.periods.filter(x=>x!==p)
-                                                        }));
-                                                    }} />
-                                                    {p}
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex gap-1.5 mt-4">
-                                    <button onClick={()=>setAttendanceModal(null)} className="flex-1 h-7 bg-slate-100 text-slate-600 rounded font-black text-[11px]">취소</button>
-                                    <button onClick={saveAttendance} className="flex-1 h-7 bg-emerald-600 text-white rounded font-black text-[11px]">저장</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {dutyModal && (
-                        <div className="modal-overlay">
-                            <div className="modal-box">
-                                <h3 className="font-black text-[13px] mb-3 text-slate-800">복무 입력 <span className="text-slate-400 font-bold text-[11px]">({dutyModal.date})</span></h3>
-                                <div className="flex flex-col gap-2.5">
-                                    <div>
-                                        <label className="modal-label">복무 유형</label>
-                                        <CustomSelect
-                                            value={dutyForm.dutyType}
-                                            options={['출장','조퇴','병가'].map(t=>({ value: t, label: t }))}
-                                            onChange={(val)=>setDutyForm({...dutyForm, dutyType: val})}
-                                        />
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <div className="flex-1">
-                                            <label className="modal-label">시작 시간</label>
-                                            <input type="time" className="modal-input" value={dutyForm.startTime} onChange={e=>setDutyForm({...dutyForm, startTime: e.target.value})} />
-                                        </div>
-                                        <div className="flex-1">
-                                            <label className="modal-label">종료 시간</label>
-                                            <input type="time" className="modal-input" value={dutyForm.endTime} onChange={e=>setDutyForm({...dutyForm, endTime: e.target.value})} />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex gap-1.5 mt-4">
-                                    <button onClick={()=>setDutyModal(null)} className="flex-1 h-7 bg-slate-100 text-slate-600 rounded font-black text-[11px]">취소</button>
-                                    <button onClick={saveDuty} className="flex-1 h-7 bg-amber-600 text-white rounded font-black text-[11px]">저장</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }

@@ -156,9 +156,10 @@
         .modal-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; font-size: 12px; font-weight: 800; outline: none; background: white; color: #1e293b; font-family: inherit; cursor: pointer; text-align: left; }
         .attendance-tag { font-size: 10px; font-weight: 800; line-height: 1.4; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
         .report-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px; }
-        .report-table th { background: #f8fafc; font-weight: 900; padding: 6px 4px; border: 1px solid #e2e8f0; text-align: center; }
-        .report-table td { padding: 6px 6px; border: 1px solid #f1f5f9; text-align: center; font-weight: 700; }
+        .report-table th { background: #f8fafc; font-weight: 900; padding: 6px 4px; border: 1px solid #e2e8f0; text-align: center; vertical-align: middle; line-height: 1.3; }
+        .report-table td { padding: 6px 6px; border: 1px solid #f1f5f9; text-align: center; font-weight: 700; vertical-align: middle; line-height: 1.3; }
         .report-table td.report-cell-left { text-align: left; }
+        .report-table .report-month-row td { background: #eef2ff; color: #4338ca; font-weight: 900; text-align: left; padding: 5px 6px; }
     </style>
 </head>
 <body>
@@ -578,40 +579,35 @@
                 return attendanceRecords.filter(r => r.type === '출결' && !(r.docSubmitted && r.neisEntered)).sort((a,b)=>a.date.localeCompare(b.date));
             }, [attendanceRecords]);
 
-            const formatAttendanceEntry = (r) => {
-                const md = `${Number(r.date.slice(5,7))}/${Number(r.date.slice(8,10))}`;
+            const formatPeriodNote = (r) => {
                 const extras = [];
                 if (r.absenceReason) extras.push(r.absenceReason);
                 if (['지각','조퇴','결과'].includes(r.absenceType) && r.periods && r.periods.length) extras.push(r.periods.join(',') + '교시');
-                return extras.length ? `${md}(${extras.join(', ')})` : md;
+                return extras.join(', ');
             };
 
-            const formatDutyEntry = (r) => {
-                const md = `${Number(r.date.slice(5,7))}/${Number(r.date.slice(8,10))}`;
-                const time = (r.startTime || r.endTime) ? `${r.startTime || ''}~${r.endTime || ''}` : '';
-                return time ? `${md}(${time})` : md;
-            };
-
-            const attendanceReportRows = useMemo(() => {
-                return STUDENTS.map(s => {
-                    const records = attendanceRecords.filter(r => r.type === '출결' && String(r.studentNum) === String(s.value)).sort((a,b)=>a.date.localeCompare(b.date));
-                    const group = { 결석: [], 지각: [], 조퇴: [], 결과: [] };
-                    records.forEach(r => { if (group[r.absenceType]) group[r.absenceType].push(formatAttendanceEntry(r)); });
-                    return { studentNum: s.value, name: s.name, group };
+            const attendanceReportGroups = useMemo(() => {
+                const records = attendanceRecords.filter(r => r.type === '출결').slice().sort((a,b)=>a.date.localeCompare(b.date) || String(a.studentNum).localeCompare(String(b.studentNum)));
+                const groupsMap = {};
+                records.forEach(r => {
+                    const monthKey = r.date.slice(0,7);
+                    if (!groupsMap[monthKey]) groupsMap[monthKey] = [];
+                    groupsMap[monthKey].push(r);
                 });
+                return Object.keys(groupsMap).sort().map(monthKey => ({
+                    monthLabel: `${Number(monthKey.slice(5,7))}월`,
+                    rows: groupsMap[monthKey]
+                }));
             }, [attendanceRecords]);
 
-            const dutyReportRows = useMemo(() => {
-                const types = ['출장(관외)','출장(관내)','출장(본교)','조퇴','병가'];
-                return types.map(t => {
-                    const records = attendanceRecords.filter(r => r.type === '복무' && r.dutyType === t).sort((a,b)=>a.date.localeCompare(b.date));
-                    return { dutyType: t, entries: records.map(formatDutyEntry) };
-                });
+            const dutyReportList = useMemo(() => {
+                return attendanceRecords.filter(r => r.type === '복무').slice().sort((a,b)=>a.date.localeCompare(b.date));
             }, [attendanceRecords]);
 
             const saveReportAsImage = async () => {
                 if (!window.html2canvas || !reportRef.current) return;
                 try {
+                    if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
                     const canvas = await window.html2canvas(reportRef.current, { backgroundColor: '#ffffff', scale: 2 });
                     const link = document.createElement('a');
                     link.download = `출결복무현황_${todayStr}.png`;
@@ -1170,28 +1166,38 @@
                             <div ref={reportRef} className="bg-white p-4">
                                 <h3 className="font-black text-[14px] mb-2 text-slate-800">출결 현황</h3>
                                 <table className="report-table">
-                                    <thead><tr><th style={{width:'50px'}}>번호</th><th style={{width:'90px'}}>이름</th><th>결석</th><th>지각</th><th>조퇴</th><th>결과</th></tr></thead>
+                                    <thead><tr><th style={{width:'70px'}}>날짜</th><th style={{width:'130px'}}>번호/이름</th><th style={{width:'70px'}}>구분</th><th>사유 / 결시교시</th></tr></thead>
                                     <tbody>
-                                        {attendanceReportRows.map(row => (
-                                            <tr key={row.studentNum}>
-                                                <td>{row.studentNum}</td>
-                                                <td>{row.name}</td>
-                                                <td className="report-cell-left">{row.group.결석.join(', ') || '-'}</td>
-                                                <td className="report-cell-left">{row.group.지각.join(', ') || '-'}</td>
-                                                <td className="report-cell-left">{row.group.조퇴.join(', ') || '-'}</td>
-                                                <td className="report-cell-left">{row.group.결과.join(', ') || '-'}</td>
-                                            </tr>
+                                        {attendanceReportGroups.length === 0 && (
+                                            <tr><td colSpan="4">기록 없음</td></tr>
+                                        )}
+                                        {attendanceReportGroups.map(g => (
+                                            <React.Fragment key={g.monthLabel}>
+                                                <tr className="report-month-row"><td colSpan="4">{g.monthLabel}</td></tr>
+                                                {g.rows.map(r => (
+                                                    <tr key={r.id}>
+                                                        <td>{Number(r.date.slice(5,7))}/{Number(r.date.slice(8,10))}</td>
+                                                        <td className="report-cell-left">{getStudentLabel(r.studentNum)}</td>
+                                                        <td>{r.absenceType}</td>
+                                                        <td className="report-cell-left">{formatPeriodNote(r) || '-'}</td>
+                                                    </tr>
+                                                ))}
+                                            </React.Fragment>
                                         ))}
                                     </tbody>
                                 </table>
                                 <h3 className="font-black text-[14px] mb-2 text-slate-800">복무 현황</h3>
                                 <table className="report-table">
-                                    <thead><tr><th style={{width:'110px'}}>복무유형</th><th>날짜</th></tr></thead>
+                                    <thead><tr><th style={{width:'70px'}}>날짜</th><th style={{width:'130px'}}>복무유형</th><th>시간</th></tr></thead>
                                     <tbody>
-                                        {dutyReportRows.map(row => (
-                                            <tr key={row.dutyType}>
-                                                <td>{row.dutyType}</td>
-                                                <td className="report-cell-left">{row.entries.join(', ') || '-'}</td>
+                                        {dutyReportList.length === 0 && (
+                                            <tr><td colSpan="3">기록 없음</td></tr>
+                                        )}
+                                        {dutyReportList.map(r => (
+                                            <tr key={r.id}>
+                                                <td>{Number(r.date.slice(5,7))}/{Number(r.date.slice(8,10))}</td>
+                                                <td>{r.dutyType}</td>
+                                                <td className="report-cell-left">{(r.startTime || r.endTime) ? `${r.startTime||''}~${r.endTime||''}` : '-'}</td>
                                             </tr>
                                         ))}
                                     </tbody>

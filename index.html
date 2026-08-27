@@ -10,7 +10,6 @@
     <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     
     <style>
@@ -608,11 +607,158 @@
                 return attendanceRecords.filter(r => r.type === '복무').slice().sort((a,b)=>a.date.localeCompare(b.date));
             }, [attendanceRecords]);
 
+            const drawReportCanvas = () => {
+                const FONT_FAMILY = "'Pretendard', sans-serif";
+                const SCALE = 2;
+                const PADDING = 24;
+                const TITLE_H = 28;
+                const HEADER_H = 34;
+                const MONTH_H = 28;
+                const ROW_H = 32;
+                const SECTION_GAP = 20;
+
+                const measureCtx = document.createElement('canvas').getContext('2d');
+                const measure = (text, font) => { measureCtx.font = font; return measureCtx.measureText(String(text)).width; };
+
+                const attCols = [
+                    { key: 'date', label: '날짜', width: 70, align: 'center' },
+                    { key: 'who', label: '번호/이름', width: 130, align: 'left' },
+                    { key: 'type', label: '구분', width: 70, align: 'center' },
+                    { key: 'note', label: '사유 / 결시교시', width: 200, align: 'left' }
+                ];
+                const dutyCols = [
+                    { key: 'date', label: '날짜', width: 70, align: 'center' },
+                    { key: 'type', label: '복무유형', width: 130, align: 'center' },
+                    { key: 'time', label: '시간', width: 200, align: 'left' }
+                ];
+
+                const attDataRows = [];
+                attendanceReportGroups.forEach(g => {
+                    attDataRows.push({ isMonth: true, label: g.monthLabel });
+                    g.rows.forEach(r => attDataRows.push({
+                        date: `${Number(r.date.slice(5,7))}/${Number(r.date.slice(8,10))}`,
+                        who: getStudentLabel(r.studentNum),
+                        type: r.absenceType,
+                        note: formatPeriodNote(r) || '-'
+                    }));
+                });
+
+                const dutyDataRows = dutyReportList.map(r => ({
+                    date: `${Number(r.date.slice(5,7))}/${Number(r.date.slice(8,10))}`,
+                    type: r.dutyType,
+                    time: (r.startTime || r.endTime) ? `${r.startTime || ''}~${r.endTime || ''}` : '-'
+                }));
+
+                const bodyFont = '700 12px ' + FONT_FAMILY;
+                const noteWidth = Math.max(200, ...attDataRows.filter(r=>!r.isMonth).map(r => measure(r.note, bodyFont) + 24), 120);
+                const timeWidth = Math.max(150, ...dutyDataRows.map(r => measure(r.time, bodyFont) + 24), 100);
+                attCols[3].width = noteWidth;
+                dutyCols[2].width = timeWidth;
+
+                const attTableWidth = attCols.reduce((s,c)=>s+c.width,0);
+                const dutyTableWidth = dutyCols.reduce((s,c)=>s+c.width,0);
+                const canvasWidth = Math.max(attTableWidth, dutyTableWidth) + PADDING * 2;
+
+                const attRowsHeight = attDataRows.length === 0 ? ROW_H : attDataRows.reduce((s,r)=> s + (r.isMonth ? MONTH_H : ROW_H), 0);
+                const dutyRowsHeight = dutyDataRows.length === 0 ? ROW_H : dutyDataRows.length * ROW_H;
+                const canvasHeight = PADDING * 2 + TITLE_H + HEADER_H + attRowsHeight + SECTION_GAP + TITLE_H + HEADER_H + dutyRowsHeight;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = canvasWidth * SCALE;
+                canvas.height = canvasHeight * SCALE;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(SCALE, SCALE);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+                let y = PADDING;
+
+                const drawTitle = (text) => {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.font = '900 14px ' + FONT_FAMILY;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(text, PADDING, y);
+                    y += TITLE_H;
+                };
+
+                const drawHeader = (cols) => {
+                    const w = cols.reduce((s,c)=>s+c.width,0);
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillRect(PADDING, y, w, HEADER_H);
+                    let x = PADDING;
+                    cols.forEach(col => {
+                        ctx.strokeStyle = '#e2e8f0';
+                        ctx.strokeRect(x, y, col.width, HEADER_H);
+                        ctx.fillStyle = '#1e293b';
+                        ctx.font = '900 12px ' + FONT_FAMILY;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(col.label, x + col.width / 2, y + HEADER_H / 2 + 1);
+                        x += col.width;
+                    });
+                    y += HEADER_H;
+                };
+
+                const drawMonthRow = (label, width) => {
+                    ctx.fillStyle = '#eef2ff';
+                    ctx.fillRect(PADDING, y, width, MONTH_H);
+                    ctx.strokeStyle = '#e2e8f0';
+                    ctx.strokeRect(PADDING, y, width, MONTH_H);
+                    ctx.fillStyle = '#4338ca';
+                    ctx.font = '900 12px ' + FONT_FAMILY;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(label, PADDING + 8, y + MONTH_H / 2 + 1);
+                    y += MONTH_H;
+                };
+
+                const drawRow = (cols, row) => {
+                    let x = PADDING;
+                    cols.forEach(col => {
+                        ctx.strokeStyle = '#f1f5f9';
+                        ctx.strokeRect(x, y, col.width, ROW_H);
+                        ctx.fillStyle = '#334155';
+                        ctx.font = bodyFont;
+                        ctx.textAlign = col.align;
+                        ctx.textBaseline = 'middle';
+                        const tx = col.align === 'left' ? x + 8 : x + col.width / 2;
+                        ctx.fillText(String(row[col.key]), tx, y + ROW_H / 2 + 1);
+                        x += col.width;
+                    });
+                    y += ROW_H;
+                };
+
+                const drawEmptyRow = (width) => {
+                    ctx.strokeStyle = '#f1f5f9';
+                    ctx.strokeRect(PADDING, y, width, ROW_H);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = bodyFont;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('기록 없음', PADDING + width / 2, y + ROW_H / 2 + 1);
+                    y += ROW_H;
+                };
+
+                drawTitle('출결 현황');
+                drawHeader(attCols);
+                if (attDataRows.length === 0) { drawEmptyRow(attTableWidth); }
+                else { attDataRows.forEach(r => { if (r.isMonth) drawMonthRow(r.label, attTableWidth); else drawRow(attCols, r); }); }
+
+                y += SECTION_GAP;
+
+                drawTitle('복무 현황');
+                drawHeader(dutyCols);
+                if (dutyDataRows.length === 0) { drawEmptyRow(dutyTableWidth); }
+                else { dutyDataRows.forEach(r => drawRow(dutyCols, r)); }
+
+                return canvas;
+            };
+
             const saveReportAsImage = async () => {
-                if (!window.html2canvas || !reportRef.current) return;
                 try {
                     if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
-                    const canvas = await window.html2canvas(reportRef.current, { backgroundColor: '#ffffff', scale: 2 });
+                    const canvas = drawReportCanvas();
                     const link = document.createElement('a');
                     link.download = `출결복무현황_${todayStr}.png`;
                     link.href = canvas.toDataURL('image/png');

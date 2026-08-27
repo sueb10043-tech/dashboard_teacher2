@@ -185,6 +185,15 @@
             const s = STUDENTS.find(s => String(s.value) === String(num));
             return s ? s.name : `${num}번`;
         };
+        const getStudentLabel = (num) => {
+            const s = STUDENTS.find(s => String(s.value) === String(num));
+            return s ? `${s.value}. ${s.name}` : `${num}번`;
+        };
+        const formatTimeInput = (value) => {
+            const digits = value.replace(/\D/g, '').slice(0, 4);
+            if (digits.length <= 2) return digits;
+            return digits.slice(0, 2) + ':' + digits.slice(2);
+        };
         
         const Icon = ({ name, className, size = 12, onClick }) => {
             const iconRef = useRef(null);
@@ -380,7 +389,7 @@
             const [attendanceModal, setAttendanceModal] = useState(null);
             const [attendanceForm, setAttendanceForm] = useState({ studentNum: '1', absenceType: '결석', absenceReason: '출석인정', periods: [1,2,3,4,5] });
             const [dutyModal, setDutyModal] = useState(null);
-            const [dutyForm, setDutyForm] = useState({ dutyType: '출장', startTime: '', endTime: '' });
+            const [dutyForm, setDutyForm] = useState({ dutyType: '출장(관외)', startTime: '', endTime: '' });
 
             const todayStr = useMemo(() => getLocalDateString(now), [now]);
 
@@ -691,7 +700,7 @@
                     setDutyForm({ dutyType: record.dutyType, startTime: record.startTime, endTime: record.endTime });
                     setDutyModal({ date: dStr, editId: record.id });
                 } else {
-                    setDutyForm({ dutyType: '출장', startTime: '', endTime: '' });
+                    setDutyForm({ dutyType: '출장(관외)', startTime: '', endTime: '' });
                     setDutyModal({ date: dStr, editId: null });
                 }
             };
@@ -794,12 +803,12 @@
                                                 ))}
                                             </div>
                                             {attendanceRecords.filter(r => r.date === dStr).length > 0 && (
-                                                <div className="mt-auto pt-0.5 border-t border-slate-100">
+                                                <div className="absolute left-[3px] right-[2px] bottom-[2px] pt-0.5 border-t border-slate-100 bg-white" style={{ zIndex: 15 }}>
                                                     {attendanceRecords.filter(r => r.date === dStr).map(r => (
                                                         <div key={r.id} className="attendance-tag group/att" style={{ color: r.type === '출결' ? '#059669' : '#b45309' }}>
                                                             <span className="truncate">
                                                                 {r.type === '출결'
-                                                                    ? `${getStudentName(r.studentNum)} ${r.absenceType}(${r.absenceReason})${(r.periods && r.periods.length) ? ' ' + r.periods.join(',') + '교시' : ''}`
+                                                                    ? `${getStudentLabel(r.studentNum)} ${r.absenceType}(${r.absenceReason})${(r.periods && r.periods.length) ? ' ' + r.periods.join(',') + '교시' : ''}`
                                                                     : `${r.dutyType} ${r.startTime || ''}${r.endTime ? '~' + r.endTime : ''}`}
                                                             </span>
                                                             <div className="flex items-center gap-1 opacity-0 group-hover/att:opacity-100 transition-opacity shrink-0">
@@ -886,18 +895,18 @@
                                                             <label className="modal-label">복무 유형</label>
                                                             <CustomSelect
                                                                 value={dutyForm.dutyType}
-                                                                options={['출장','조퇴','병가'].map(t=>({ value: t, label: t }))}
+                                                                options={['출장(관외)','출장(관내)','출장(본교)','조퇴','병가'].map(t=>({ value: t, label: t }))}
                                                                 onChange={(val)=>setDutyForm({...dutyForm, dutyType: val})}
                                                             />
                                                         </div>
                                                         <div className="flex gap-1.5">
                                                             <div className="flex-1">
                                                                 <label className="modal-label">시작</label>
-                                                                <input type="text" inputMode="numeric" placeholder="15:30" maxLength={5} className="modal-input" style={{cursor:'text'}} value={dutyForm.startTime} onChange={e=>setDutyForm({...dutyForm, startTime: e.target.value})} />
+                                                                <input type="text" inputMode="numeric" placeholder="15:30" maxLength={5} className="modal-input" style={{cursor:'text'}} value={dutyForm.startTime} onChange={e=>setDutyForm({...dutyForm, startTime: formatTimeInput(e.target.value)})} />
                                                             </div>
                                                             <div className="flex-1">
                                                                 <label className="modal-label">종료</label>
-                                                                <input type="text" inputMode="numeric" placeholder="17:00" maxLength={5} className="modal-input" style={{cursor:'text'}} value={dutyForm.endTime} onChange={e=>setDutyForm({...dutyForm, endTime: e.target.value})} />
+                                                                <input type="text" inputMode="numeric" placeholder="17:00" maxLength={5} className="modal-input" style={{cursor:'text'}} value={dutyForm.endTime} onChange={e=>setDutyForm({...dutyForm, endTime: formatTimeInput(e.target.value)})} />
                                                             </div>
                                                         </div>
                                                     </div>

@@ -235,6 +235,26 @@
             }, []);
         };
 
+        // ★ 마우스 휠 스크롤이 안 먹는 환경(예: Lively 바탕화면)을 위한 클릭-드래그 스크롤 훅
+        const useDragScroll = () => {
+            const ref = useRef(null);
+            const state = useRef({ dragging: false, startY: 0, startScroll: 0, moved: false });
+
+            const onMouseDown = (e) => {
+                if (!ref.current) return;
+                state.current = { dragging: true, startY: e.clientY, startScroll: ref.current.scrollTop, moved: false };
+            };
+            const onMouseMove = (e) => {
+                if (!state.current.dragging || !ref.current) return;
+                const dy = e.clientY - state.current.startY;
+                if (Math.abs(dy) > 2) state.current.moved = true;
+                ref.current.scrollTop = state.current.startScroll - dy;
+            };
+            const stopDrag = () => { state.current.dragging = false; };
+
+            return { ref, onMouseDown, onMouseMove, onMouseUp: stopDrag, onMouseLeave: stopDrag };
+        };
+
         const FactorCell = ({ factor, isFinished }) => {
             const [showTooltip, setShowTooltip] = useState(false);
             const textRef = useRef(null);
@@ -378,6 +398,7 @@
 
         function App() {
             useAutoZoom();
+            const attScroll = useDragScroll();
             const [now, setNow] = useState(new Date()); 
             const [data, setData] = useState({ monthlyData: {}, routines: [], personalRoutines: [], waterTarget: 2000, waterHistory: {}, waterHistoryLogs: {}, generalMemo: '', evaluationMemo: '', schoolInfo: null, lastResetDate: "", dDayDate: "", dDayTitle: "", links: [], completedEvalRows: [] });
             const [budgetData, setBudgetData] = useState({ budgets: [] });
@@ -1177,7 +1198,7 @@
                                     <div className="flex items-center gap-1.5"><Icon name="clipboard-check" className="text-indigo-600" size={12} /><h2 className="font-black text-[14px]">출결 및 복무사항</h2></div>
                                     <button onClick={()=>setShowReport(true)} className="text-slate-300 hover:text-indigo-600 mr-1 transition-colors" title="전체 기간 표로 보기"><Icon name="table" size={12}/></button>
                                 </header>
-                                <div className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1">
+                                <div {...attScroll} className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1" style={{ cursor: 'grab' }}>
                                     {openAttendanceSummaryList.map(r => (
                                         <div key={r.id} className="flex items-center gap-1 text-[11.5px] font-black text-slate-700 leading-[1.4] mb-0.5">
                                             <span className="truncate flex-1">{getStudentLabel(r.studentNum)} {Number(r.date.slice(5,7))}/{Number(r.date.slice(8,10))} {r.absenceType}</span>

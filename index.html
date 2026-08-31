@@ -178,6 +178,7 @@
         const ATTENDANCE_SHEET = "교사용_출결 및 복무";
         const SAVE_RANGE = "A3:G3";
         const BUDGET_EXTERNAL_LINK = "https://sueb10043-tech.github.io/schoolbudget/";
+        const EVAL_SHEET_LINK = "https://docs.google.com/spreadsheets/d/1thtxmoJwKfBdVd22gTEQWvf7T-OhYikJfzEDIgEXEmo/edit?gid=1521645863#gid=1521645863";
 
         const COLORS = {
             BG_WHITE: '#FFFFFF', BG_RED: '#FFF1F2', BG_BLUE: '#EFF6FF',
@@ -790,12 +791,22 @@
                 });
             };
 
-            const cycleEvalResult = async (rowObj, colKey) => {
-                const results = ["", "◎", "○", "△"];
-                const nextVal = results[(results.indexOf(rowObj[colKey]) + 1) % results.length];
-                setEvalData(prev => prev.map(item => item.sheetRow === rowObj.sheetRow ? { ...item, [colKey]: nextVal } : item));
+            const [evalResultPopover, setEvalResultPopover] = useState(null);
+
+            const openEvalResultPopover = (e, rowObj, colKey) => {
+                if (evalResultPopover && evalResultPopover.sheetRow === rowObj.sheetRow && evalResultPopover.colKey === colKey) {
+                    setEvalResultPopover(null);
+                    return;
+                }
+                const rect = e.currentTarget.getBoundingClientRect();
+                setEvalResultPopover({ sheetRow: rowObj.sheetRow, colKey, top: rect.bottom + 2, left: rect.left });
+            };
+
+            const selectEvalResult = async (sheetRow, colKey, val) => {
+                setEvalData(prev => prev.map(item => item.sheetRow === sheetRow ? { ...item, [colKey]: val } : item));
                 const colLetter = { n1: 'E', n2: 'F', n3: 'G', n4: 'H' }[colKey];
-                try { await fetch(`${GAS_URL}?sheet=${encodeURIComponent(EVAL_SHEET)}`, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ range: `${colLetter}${rowObj.sheetRow}`, data: [[nextVal]] }) }); } catch (e) {}
+                try { await fetch(`${GAS_URL}?sheet=${encodeURIComponent(EVAL_SHEET)}`, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ range: `${colLetter}${sheetRow}`, data: [[val]] }) }); } catch (e) {}
+                setEvalResultPopover(null);
             };
 
             const openDdayPicker = () => {
@@ -1243,7 +1254,10 @@
                             </section>
                             
                             <section className="glass-card h-[135px] overflow-hidden relative transition-all z-10">
-                                <header className="widget-header" style={{ height: '22px' }}><div className="flex items-center gap-1.5"><Icon name="clipboard-list" className="text-purple-600" size={12} /><h2 className="font-black text-[14px]">평가 계획</h2></div></header>
+                                <header className="widget-header" style={{ height: '22px' }}>
+                                    <div className="flex items-center gap-1.5"><Icon name="clipboard-list" className="text-purple-600" size={12} /><h2 className="font-black text-[14px]">평가 계획</h2></div>
+                                    <button onClick={() => window.open(EVAL_SHEET_LINK, '_blank')} className="mr-1 p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-500 transition-colors" title="평가 계획 시트"><Icon name="external-link" size={12} /></button>
+                                </header>
                                 <div className="flex-grow overflow-y-auto custom-scrollbar" style={{ height: '110px' }}>
                                     <table className="eval-table">
                                         <thead><tr><th style={{ width: '20px' }}>V</th><th style={{ width: '35px' }}>과목</th><th style={{ width: '25px' }}>단원</th><th>평가 요소</th><th style={{ width: '18px' }}>1</th><th style={{ width: '18px' }}>2</th><th style={{ width: '18px' }}>3</th><th style={{ width: '18px' }}>4</th></tr></thead>
@@ -1256,7 +1270,7 @@
                                                         <td className={`font-black ${isF ? '' : getSubjectColor(row.subject)}`}>{row.subject}</td>
                                                         <td className="truncate text-[10px]">{row.unit}</td>
                                                         <FactorCell factor={row.factor} isFinished={isF} />
-                                                        {['n1', 'n2', 'n3', 'n4'].map(col => (<td key={col} className="cursor-pointer hover:bg-slate-50 font-black text-[10px]" onClick={() => cycleEvalResult(row, col)}>{row[col]}</td>))}
+                                                        {['n1', 'n2', 'n3', 'n4'].map(col => (<td key={col} className="cursor-pointer hover:bg-slate-50 font-black text-[10px]" onClick={(e) => openEvalResultPopover(e, row, col)}>{row[col]}</td>))}
                                                     </tr>
                                                 );
                                             })}
@@ -1303,6 +1317,15 @@
                             </section>
                         </div>
                     </div>
+
+                    {evalResultPopover && (
+                        <div className="popover-base p-1 flex gap-1" style={{ position: 'fixed', top: evalResultPopover.top, left: evalResultPopover.left, zIndex: 7000 }}>
+                            {['◎','○','△'].map(v => (
+                                <button key={v} onClick={() => selectEvalResult(evalResultPopover.sheetRow, evalResultPopover.colKey, v)} className="w-7 h-7 rounded hover:bg-indigo-50 font-black text-[14px] flex items-center justify-center text-slate-700">{v}</button>
+                            ))}
+                            <button onClick={() => selectEvalResult(evalResultPopover.sheetRow, evalResultPopover.colKey, '')} className="w-7 h-7 rounded hover:bg-red-50 flex items-center justify-center text-slate-300 hover:text-red-500"><Icon name="x" size={12}/></button>
+                        </div>
+                    )}
 
                     {showReport && (
                         <div className="popover-base p-4" style={{ position: 'fixed', top: '60px', left: '440px', width: '1040px', maxHeight: '950px', overflowY: 'auto', zIndex: 6000 }}>

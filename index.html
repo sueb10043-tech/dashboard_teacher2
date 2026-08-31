@@ -804,13 +804,19 @@
                     return;
                 }
                 const rect = e.currentTarget.getBoundingClientRect();
-                setEvalResultPopover({ sheetRow: rowObj.sheetRow, colKey, top: rect.bottom + 2, left: rect.left });
+                const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--zoom-level')) || 1;
+                setEvalResultPopover({ sheetRow: rowObj.sheetRow, colKey, top: (rect.bottom / zoom) + 2, left: rect.left / zoom });
             };
 
             const selectEvalResult = async (sheetRow, colKey, val) => {
                 setEvalData(prev => prev.map(item => item.sheetRow === sheetRow ? { ...item, [colKey]: val } : item));
                 const colLetter = { n1: 'E', n2: 'F', n3: 'G', n4: 'H' }[colKey];
-                try { await fetch(`${GAS_URL}?sheet=${encodeURIComponent(EVAL_SHEET)}`, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ range: `${colLetter}${sheetRow}`, data: [[val]] }) }); } catch (e) {}
+                const targetRange = `${colLetter}${sheetRow}`;
+                try {
+                    await fetch(`${GAS_URL}?sheet=${encodeURIComponent(EVAL_SHEET)}&range=${encodeURIComponent(targetRange)}`, {
+                        method: 'POST', mode: 'no-cors', body: JSON.stringify({ data: [[val]] })
+                    });
+                } catch (e) { console.error('Eval Save Error:', e); }
                 setEvalResultPopover(null);
             };
 

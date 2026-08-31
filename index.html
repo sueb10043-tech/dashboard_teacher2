@@ -770,10 +770,15 @@
             const prioritizedEvalData = useMemo(() => {
                 if (!evalData.length) return [];
                 const finishedRows = data.completedEvalRows || [], subjectOrder = ['국어', '수학', '통합'];
-                const incomplete = evalData.filter(d => !finishedRows.includes(d.sheetRow)), complete = evalData.filter(d => finishedRows.includes(d.sheetRow));
+                const sortedAll = evalData.slice().sort((a, b) => {
+                    const subA = subjectOrder.indexOf(a.subject), subB = subjectOrder.indexOf(b.subject);
+                    if (subA !== subB) return (subA === -1 ? 99 : subA) - (subB === -1 ? 99 : subB);
+                    return (Number(a.unit) || 0) - (Number(b.unit) || 0);
+                });
+                const incomplete = sortedAll.filter(d => !finishedRows.includes(d.sheetRow)), complete = sortedAll.filter(d => finishedRows.includes(d.sheetRow));
                 const priorityRows = [], usedIds = new Set(), counts = { '국어': 2, '수학': 1, '통합': 2 };
                 subjectOrder.forEach(sub => {
-                    const subItems = incomplete.filter(d => d.subject === sub).sort((a, b) => String(a.unit || "").localeCompare(String(b.unit || ""), 'ko'));
+                    const subItems = incomplete.filter(d => d.subject === sub);
                     subItems.slice(0, counts[sub] || 0).forEach(item => { priorityRows.push(item); usedIds.add(item.sheetRow); });
                 });
                 return [...priorityRows, ...incomplete.filter(d => !usedIds.has(d.sheetRow)), ...complete];
@@ -1164,7 +1169,7 @@
                                     <div className="flex items-center gap-1.5"><Icon name="clipboard-check" className="text-indigo-600" size={12} /><h2 className="font-black text-[14px]">출결 및 복무사항</h2></div>
                                     <button onClick={()=>setShowReport(true)} className="text-slate-300 hover:text-indigo-600 mr-1 transition-colors" title="전체 기간 표로 보기"><Icon name="table" size={12}/></button>
                                 </header>
-                                <div className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px]" style={{ paddingBottom: dutyMonthlyCounts.length > 0 ? `${dutyMonthlyCounts.length * 16 + 4}px` : '4px' }}>
+                                <div className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1">
                                     {openAttendanceSummaryList.map(r => (
                                         <div key={r.id} className="flex items-center gap-1 text-[11.5px] font-black text-slate-700 leading-[1.4] mb-0.5">
                                             <span className="truncate flex-1">{getStudentLabel(r.studentNum)} {Number(r.date.slice(5,7))}/{Number(r.date.slice(8,10))} {r.absenceType}</span>
@@ -1179,16 +1184,16 @@
                                     {openAttendanceSummaryList.length === 0 && dutyMonthlyCounts.length === 0 && (
                                         <div className="text-[11.5px] font-bold text-slate-300 text-center pt-2">기록 없음</div>
                                     )}
+                                    {dutyMonthlyCounts.length > 0 && (
+                                        <div className="sticky bottom-0 bg-white pt-0.5 border-t border-slate-100">
+                                            {dutyMonthlyCounts.map(({dutyType, count}) => (
+                                                <div key={dutyType} className="text-[11.5px] font-black text-amber-700 leading-[1.4]">
+                                                    {currentMonthLabel} {dutyType} {count}회
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                {dutyMonthlyCounts.length > 0 && (
-                                    <div className="absolute left-1.5 right-1.5 bottom-1 bg-white pt-0.5 border-t border-slate-100" style={{ zIndex: 5 }}>
-                                        {dutyMonthlyCounts.map(({dutyType, count}) => (
-                                            <div key={dutyType} className="text-[11.5px] font-black text-amber-700 leading-[1.4]">
-                                                {currentMonthLabel} {dutyType} {count}회
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </section>
 
                             <section className="glass-card h-[125px] overflow-hidden">

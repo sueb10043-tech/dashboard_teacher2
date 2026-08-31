@@ -1156,7 +1156,7 @@
                                 <div className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px]" style={{ paddingBottom: dutyMonthlyCounts.length > 0 ? `${dutyMonthlyCounts.length * 16 + 4}px` : '4px' }}>
                                     {openAttendanceSummaryList.map(r => (
                                         <div key={r.id} className="flex items-center gap-1 text-[11.5px] font-black text-slate-700 leading-[1.4] mb-0.5">
-                                            <span className="truncate flex-1">{getStudentLabel(r.studentNum)} {r.absenceType}({r.absenceReason})</span>
+                                            <span className="truncate flex-1">{getStudentLabel(r.studentNum)} {Number(r.date.slice(5,7))}/{Number(r.date.slice(8,10))} {r.absenceType}</span>
                                             <label className="flex items-center gap-0.5 shrink-0 text-slate-500">
                                                 <input type="checkbox" className="compact-checkbox" checked={!!r.docSubmitted} onChange={(e)=>setAttendanceRecords(prev=>prev.map(x=>x.id===r.id?{...x, docSubmitted: e.target.checked}:x))} />서류 제출
                                             </label>

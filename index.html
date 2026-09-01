@@ -548,7 +548,7 @@
                     setBudgetData({ budgets: formatted });
                 } catch (e) { 
                     console.error("Budget Error:", e); 
-                    setBudgetData({ budgets: [] });
+                    setTimeout(() => { fetchBudgetData(); }, 3000);
                 }
             }, []);
 
@@ -578,7 +578,10 @@
                             };
                         }));
                     }
-                } catch (e) { console.error("Eval Error:", e); }
+                } catch (e) { 
+                    console.error("Eval Error:", e); 
+                    setTimeout(() => { fetchEvalData(); }, 3000);
+                }
             }, []);
 
             useEffect(() => {

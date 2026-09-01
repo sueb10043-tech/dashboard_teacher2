@@ -500,8 +500,14 @@
                             ...meta 
                         });
                     }
-                } catch (e) { console.error("Load Error:", e); } 
-                finally { setIsInitialLoading(false); setIsSyncing(false); }
+                    // ★ 로딩이 실제로 성공했을 때만 저장을 허용한다 (실패 시 빈 기본값이 시트를 덮어쓰는 것을 방지)
+                    setIsInitialLoading(false);
+                    setIsSyncing(false);
+                } catch (e) { 
+                    console.error("Load Error:", e); 
+                    // 네트워크/콜드스타트 등으로 실패하면 isInitialLoading을 풀지 않고 잠시 후 재시도
+                    setTimeout(() => { loadFromCloud(); }, 3000);
+                }
             }, []);
 
             // ★ 수정: GET 요청에 credentials: 'omit' 추가
@@ -895,8 +901,13 @@
                     } else {
                         setAttendanceRecords([]);
                     }
-                } catch (e) { console.error("Attendance Load Error:", e); setAttendanceRecords([]); }
-                finally { setIsAttendanceLoaded(true); }
+                    // ★ 로딩이 실제로 성공했을 때만 저장을 허용한다 (실패 시 빈 배열이 시트를 덮어쓰는 것을 방지)
+                    setIsAttendanceLoaded(true);
+                } catch (e) { 
+                    console.error("Attendance Load Error:", e); 
+                    // 기존 데이터는 그대로 두고, 잠시 후 재시도
+                    setTimeout(() => { loadAttendanceData(); }, 3000);
+                }
             }, []);
 
             const saveAttendanceToCloud = useCallback(async () => {

@@ -399,6 +399,7 @@
         function App() {
             useAutoZoom();
             const attScroll = useDragScroll();
+            const evalScroll = useDragScroll();
             const [now, setNow] = useState(new Date()); 
             const [data, setData] = useState({ monthlyData: {}, routines: [], personalRoutines: [], waterTarget: 2000, waterHistory: {}, waterHistoryLogs: {}, generalMemo: '', evaluationMemo: '', schoolInfo: null, lastResetDate: "", dDayDate: "", dDayTitle: "", links: [], completedEvalRows: [] });
             const [budgetData, setBudgetData] = useState({ budgets: [] });
@@ -1306,7 +1307,7 @@
                                     <div className="flex items-center gap-1.5"><Icon name="clipboard-list" className="text-purple-600" size={12} /><h2 className="font-black text-[14px]">평가 계획</h2></div>
                                     <button onClick={() => window.open(EVAL_SHEET_LINK, '_blank')} className="mr-1 p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-500 transition-colors" title="평가 계획 시트"><Icon name="external-link" size={12} /></button>
                                 </header>
-                                <div className="flex-grow overflow-y-auto custom-scrollbar" style={{ height: '110px' }}>
+                                <div {...evalScroll} className="flex-grow overflow-y-auto custom-scrollbar" style={{ height: '110px', cursor: 'grab' }}>
                                     <table className="eval-table">
                                         <thead><tr><th style={{ width: '20px' }}>V</th><th style={{ width: '35px' }}>과목</th><th style={{ width: '25px' }}>단원</th><th>평가 요소</th><th style={{ width: '18px' }}>1</th><th style={{ width: '18px' }}>2</th><th style={{ width: '18px' }}>3</th><th style={{ width: '18px' }}>4</th></tr></thead>
                                         <tbody>

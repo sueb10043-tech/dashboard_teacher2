@@ -1050,6 +1050,8 @@
                                     if (!date) return <div key={i} className="table-cell bg-white"></div>;
                                     const dStr = getLocalDateString(date), dayData = (data.monthlyData || {})[dStr] || { items:[], bgColor: COLORS.BG_WHITE };
                                     const isHolidayBg = dayData.bgColor === COLORS.BG_RED;
+                                    // ★ 토·일 칸은 폭이 좁아 버튼이 행사 입력칸을 가리므로 버튼을 오른쪽 아래에 표시
+                                    const isWeekendCol = date.getDay() === 0 || date.getDay() === 6;
                                     return (
                                         <div 
                                             key={dStr} 
@@ -1086,7 +1088,7 @@
                                                     ))}
                                                 </div>
                                             )}
-                                            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-all z-20">
+                                            <div className={`absolute ${isWeekendCol ? 'bottom-1' : 'top-1'} right-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-all z-20`}>
                                                 <button onClick={() => openDutyModal(dStr)} className="bg-amber-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center text-[10px] font-black leading-none">ㅂ</button>
                                                 <button onClick={() => openAttendanceModal(dStr)} className="bg-emerald-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center text-[10px] font-black leading-none">ㅊ</button>
                                                 <button onClick={() => setColorPickerDate(colorPickerDate === dStr ? null : dStr)} className="bg-slate-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center"><Icon name="palette" size={9}/></button>
@@ -1094,7 +1096,7 @@
                                             </div>
                                             
                                             {colorPickerDate === dStr && (
-                                                <div className="popover-color-picker" style={{ top: '20px', right: '1px' }}>
+                                                <div className="popover-color-picker" style={isWeekendCol ? { bottom: '22px', right: '1px' } : { top: '20px', right: '1px' }}>
                                                     <div className="color-dot bg-white" onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_WHITE}}}); setColorPickerDate(null); }}></div>
                                                     <div className="color-dot" style={{ backgroundColor: COLORS.BG_RED }} onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_RED}}}); setColorPickerDate(null); }}></div>
                                                     <div className="color-dot" style={{ backgroundColor: COLORS.BG_BLUE }} onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_BLUE}}}); setColorPickerDate(null); }}></div>

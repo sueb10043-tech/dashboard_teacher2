@@ -154,8 +154,8 @@
         .modal-label { font-size: 10px; font-weight: 900; color: #94a3b8; display: block; margin-bottom: 2px; }
         .modal-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; font-size: 12px; font-weight: 800; outline: none; background: white; color: #1e293b; font-family: inherit; cursor: pointer; text-align: left; }
         .date-num-btn { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; line-height: 19px; cursor: pointer; border-radius: 9999px; font-variant-numeric: tabular-nums; }
-        .date-num-btn:hover { background: #fef9c3; }
-        .morning-care-circle, .morning-care-circle:hover { background: #FDE047; }
+        .date-num-btn:hover { background: #f5f3ff; }
+        .morning-care-circle, .morning-care-circle:hover { background: #DDD6FE; }
         .attendance-tag { font-size: 10px; font-weight: 800; line-height: 1.4; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
         .report-grid { border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 24px; }
         .report-row { display: grid; }
@@ -1227,20 +1227,22 @@
                                     {openAttendanceSummaryList.length === 0 && dutyMonthlyCounts.length === 0 && morningCareMonthlyCount === 0 && (
                                         <div className="text-[11.5px] font-bold text-slate-300 text-center pt-2">기록 없음</div>
                                     )}
+                                    {dutyMonthlyCounts.length > 0 && (
+                                        <div className="sticky bottom-0 bg-white pt-0.5 border-t border-slate-100">
+                                            {dutyMonthlyCounts.map(({dutyType, count}) => (
+                                                <div key={dutyType} className="text-[11.5px] font-black text-amber-700 leading-[1.4]">
+                                                    {currentMonthLabel} {dutyType} {count}회
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                {/* ★ 복무 횟수·아침늘봄 횟수는 박스 맨 아래에 고정 */}
-                                {(dutyMonthlyCounts.length > 0 || morningCareMonthlyCount > 0) && (
+                                {/* ★ 아침늘봄 횟수만 박스 맨 아래에 고정 */}
+                                {morningCareMonthlyCount > 0 && (
                                     <div className="shrink-0 bg-white px-1.5 pt-0.5 pb-1 border-t border-slate-100 rounded-b-[0.75rem]">
-                                        {dutyMonthlyCounts.map(({dutyType, count}) => (
-                                            <div key={dutyType} className="text-[11.5px] font-black text-amber-700 leading-[1.4]">
-                                                {currentMonthLabel} {dutyType} {count}회
-                                            </div>
-                                        ))}
-                                        {morningCareMonthlyCount > 0 && (
-                                            <div className="text-[11.5px] font-black leading-[1.4]" style={{ color: '#CA8A04' }}>
-                                                {currentMonthLabel} 아침늘봄 {morningCareMonthlyCount}회
-                                            </div>
-                                        )}
+                                        <div className="text-[11.5px] font-black text-violet-600 leading-[1.4]">
+                                            {currentMonthLabel} 아침늘봄 {morningCareMonthlyCount}회
+                                        </div>
                                     </div>
                                 )}
                             </section>

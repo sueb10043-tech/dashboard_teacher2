@@ -153,9 +153,9 @@
 
         .modal-label { font-size: 10px; font-weight: 900; color: #94a3b8; display: block; margin-bottom: 2px; }
         .modal-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 6px; font-size: 12px; font-weight: 800; outline: none; background: white; color: #1e293b; font-family: inherit; cursor: pointer; text-align: left; }
-        .morning-care-circle { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; border: 1.5px solid #7c3aed; border-radius: 9999px; line-height: 1; }
-        .date-num-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 19px; cursor: pointer; border-radius: 9999px; }
-        .date-num-btn:hover { background: #f5f3ff; }
+        .date-num-btn { display: inline-flex; align-items: center; justify-content: center; width: 19px; height: 19px; line-height: 19px; cursor: pointer; border-radius: 9999px; font-variant-numeric: tabular-nums; }
+        .date-num-btn:hover { background: #fef9c3; }
+        .morning-care-circle, .morning-care-circle:hover { background: #FDE047; }
         .attendance-tag { font-size: 10px; font-weight: 800; line-height: 1.4; display: flex; align-items: center; justify-content: space-between; gap: 2px; }
         .report-grid { border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 24px; }
         .report-row { display: grid; }
@@ -403,7 +403,8 @@
             const [attendanceForm, setAttendanceForm] = useState({ studentNum: '1', absenceType: '결석', absenceReason: '출석인정', periods: [1,2,3,4,5] });
             const [dutyModal, setDutyModal] = useState(null);
             const [dutyForm, setDutyForm] = useState({ dutyType: '출장(관외)', startTime: '', endTime: '' });
-            const [morningCareDate, setMorningCareDate] = useState(null);
+            const calendarGridRef = useRef(null);
+            const [calendarRowTemplate, setCalendarRowTemplate] = useState(null);
 
             const todayStr = useMemo(() => getLocalDateString(now), [now]);
 
@@ -415,6 +416,23 @@
                 while (days.length % 7 !== 0) days.push(null);
                 return days;
             }, [viewDate]);
+
+            // ★ 달력 줄 높이를 소수점 없는 정수 px로 계산 (1fr이면 줄마다 소수점 위치가 달라져 날짜가 위/아래로 쏠려 보임)
+            const calendarWeeks = calendarDays.length / 7;
+            useLayoutEffect(() => {
+                const el = calendarGridRef.current;
+                if (!el) return;
+                const calc = () => {
+                    const avail = el.clientHeight - 24 - calendarWeeks; // 요일 헤더 24px, 줄 사이 1px 간격
+                    if (avail <= 0) return;
+                    const base = Math.floor(avail / calendarWeeks), extra = avail - base * calendarWeeks;
+                    setCalendarRowTemplate(Array.from({ length: calendarWeeks }, (_, i) => `minmax(${i < extra ? base + 1 : base}px, auto)`).join(' '));
+                };
+                calc();
+                const ro = new ResizeObserver(calc);
+                ro.observe(el);
+                return () => ro.disconnect();
+            }, [calendarWeeks]);
 
             const waterIntake = useMemo(() => data.waterHistory?.[todayStr] || 0, [data.waterHistory, todayStr]);
             const dDayValue = useMemo(() => {
@@ -585,9 +603,9 @@
                 return Object.entries(data.monthlyData || {}).filter(([d, v]) => d.startsWith(monthPrefix) && v && v.morningCare).length;
             }, [data.monthlyData, viewDate]);
 
-            const toggleMorningCare = (dStr, dayData, value) => {
-                updateData({ monthlyData: { ...data.monthlyData, [dStr]: { ...dayData, morningCare: value } } });
-                setMorningCareDate(null);
+            // ★ 날짜 숫자 클릭: 바로 표시, 한 번 더 누르면 해제
+            const toggleMorningCare = (dStr, dayData) => {
+                updateData({ monthlyData: { ...data.monthlyData, [dStr]: { ...dayData, morningCare: !dayData.morningCare } } });
             };
 
             const openAttendanceSummaryList = useMemo(() => {
@@ -1026,7 +1044,7 @@
                                     <button onClick={()=>setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1))} className="p-1 hover:bg-white rounded text-slate-400 h-[24px] flex items-center"><Icon name="chevron-right" size={16}/></button>
                                 </div>
                             </header>
-                            <div className="calendar-grid-parent rounded-b-[0.75rem]" style={{ gridTemplateRows: `24px repeat(${calendarDays.length / 7}, 1fr)` }}>
+                            <div ref={calendarGridRef} className="calendar-grid-parent rounded-b-[0.75rem]" style={{ gridTemplateRows: `24px ${calendarRowTemplate || `repeat(${calendarWeeks}, 1fr)`}` }}>
                                 {['월','화','수','목','금','토','일'].map((d,i)=>(<div key={d} className={`header-cell ${i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-400' : 'text-slate-400'}`}>{d}</div>))}
                                 {calendarDays.map((date, i) => {
                                     if (!date) return <div key={i} className="table-cell bg-white"></div>;
@@ -1040,9 +1058,9 @@
                                         >
                                             <div className="flex items-center gap-1 h-[20px] px-0">
                                                 <span
-                                                    onClick={() => setMorningCareDate(morningCareDate === dStr ? null : dStr)}
-                                                    title="아침늘봄 표시"
-                                                    className={`date-num-btn shrink-0 text-[12px] font-black ${dayData.morningCare ? 'morning-care-circle' : ''} ${date.getDay() === 0 || isHolidayBg ? 'text-red-500' : date.getDay() === 6 ? 'text-blue-500' : 'text-slate-400'}`}
+                                                    onClick={() => toggleMorningCare(dStr, dayData)}
+                                                    title="아침늘봄 표시/해제"
+                                                    className={`date-num-btn shrink-0 text-[12px] font-black ${dayData.morningCare ? 'morning-care-circle' : ''} ${date.getDay() === 0 || isHolidayBg ? 'text-red-500' : date.getDay() === 6 ? 'text-blue-500' : (dayData.morningCare ? 'text-slate-800' : 'text-slate-400')}`}
                                                 >{date.getDate()}</span>
                                                 <input type="text" value={dayData.holiday||''} onChange={(e) => updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, holiday: e.target.value}}})} style={{ color: isHolidayBg ? '#ef4444' : '#2563eb' }} className="bg-transparent text-[12px] font-black w-full outline-none truncate" spellCheck={false} />
                                             </div>
@@ -1075,18 +1093,6 @@
                                                 <button onClick={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: [...(dayData.items||[]), {id:Date.now(), text:'', completed:false}]}}})} className="p-0.5 bg-indigo-600 text-white rounded w-[16px] h-[16px] flex items-center justify-center"><Icon name="plus" size={10}/></button>
                                             </div>
                                             
-                                            {morningCareDate === dStr && (
-                                                <div className="popover-base p-2" style={{ top: '22px', left: '0px', width: '130px' }}>
-                                                    <h3 className="font-black text-[11px] mb-1.5 text-violet-600">아침늘봄</h3>
-                                                    {dayData.morningCare ? (
-                                                        <button onClick={() => toggleMorningCare(dStr, dayData, false)} className="w-full h-6 bg-slate-100 text-slate-600 rounded font-black text-[10px] mb-1">표시 해제</button>
-                                                    ) : (
-                                                        <button onClick={() => toggleMorningCare(dStr, dayData, true)} className="w-full h-6 bg-violet-600 text-white rounded font-black text-[10px] mb-1">표시하기</button>
-                                                    )}
-                                                    <button onClick={() => setMorningCareDate(null)} className="w-full h-5 text-slate-400 rounded font-black text-[10px]">닫기</button>
-                                                </div>
-                                            )}
-
                                             {colorPickerDate === dStr && (
                                                 <div className="popover-color-picker" style={{ top: '20px', right: '1px' }}>
                                                     <div className="color-dot bg-white" onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_WHITE}}}); setColorPickerDate(null); }}></div>
@@ -1206,7 +1212,7 @@
                                     <div className="flex items-center gap-1.5"><Icon name="clipboard-check" className="text-indigo-600" size={12} /><h2 className="font-black text-[14px]">출결 및 복무사항</h2></div>
                                     <button onClick={()=>setShowReport(true)} className="text-slate-300 hover:text-indigo-600 mr-1 transition-colors" title="전체 기간 표로 보기"><Icon name="table" size={12}/></button>
                                 </header>
-                                <div {...attScroll} className="flex-grow overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1" style={{ cursor: 'grab' }}>
+                                <div {...attScroll} className="flex-1 min-h-0 overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1" style={{ cursor: 'grab' }}>
                                     {openAttendanceSummaryList.map(r => (
                                         <div key={r.id} className="flex items-center gap-1 text-[11.5px] font-black text-slate-700 leading-[1.4] mb-0.5">
                                             <span className="truncate flex-1">{getStudentLabel(r.studentNum)} {Number(r.date.slice(5,7))}/{Number(r.date.slice(8,10))} {r.absenceType}</span>
@@ -1221,21 +1227,22 @@
                                     {openAttendanceSummaryList.length === 0 && dutyMonthlyCounts.length === 0 && morningCareMonthlyCount === 0 && (
                                         <div className="text-[11.5px] font-bold text-slate-300 text-center pt-2">기록 없음</div>
                                     )}
-                                    {(dutyMonthlyCounts.length > 0 || morningCareMonthlyCount > 0) && (
-                                        <div className="sticky bottom-0 bg-white pt-0.5 border-t border-slate-100">
-                                            {dutyMonthlyCounts.map(({dutyType, count}) => (
-                                                <div key={dutyType} className="text-[11.5px] font-black text-amber-700 leading-[1.4]">
-                                                    {currentMonthLabel} {dutyType} {count}회
-                                                </div>
-                                            ))}
-                                            {morningCareMonthlyCount > 0 && (
-                                                <div className="text-[11.5px] font-black text-violet-600 leading-[1.4]">
-                                                    {currentMonthLabel} 아침늘봄 {morningCareMonthlyCount}회
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
+                                {/* ★ 복무 횟수·아침늘봄 횟수는 박스 맨 아래에 고정 */}
+                                {(dutyMonthlyCounts.length > 0 || morningCareMonthlyCount > 0) && (
+                                    <div className="shrink-0 bg-white px-1.5 pt-0.5 pb-1 border-t border-slate-100 rounded-b-[0.75rem]">
+                                        {dutyMonthlyCounts.map(({dutyType, count}) => (
+                                            <div key={dutyType} className="text-[11.5px] font-black text-amber-700 leading-[1.4]">
+                                                {currentMonthLabel} {dutyType} {count}회
+                                            </div>
+                                        ))}
+                                        {morningCareMonthlyCount > 0 && (
+                                            <div className="text-[11.5px] font-black leading-[1.4]" style={{ color: '#CA8A04' }}>
+                                                {currentMonthLabel} 아침늘봄 {morningCareMonthlyCount}회
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </section>
 
                             <section className="glass-card h-[125px] overflow-hidden">

@@ -1214,7 +1214,11 @@
                             <section className="glass-card h-[125px] overflow-hidden relative">
                                 <header className="widget-header" style={{ height: '22px' }}>
                                     <div className="flex items-center gap-1.5"><Icon name="clipboard-check" className="text-indigo-600" size={12} /><h2 className="font-black text-[14px]">출결 및 복무사항</h2></div>
-                                    <button onClick={()=>setShowReport(true)} className="text-slate-300 hover:text-indigo-600 mr-1 transition-colors" title="전체 기간 표로 보기"><Icon name="table" size={12}/></button>
+                                    <div className="flex items-center gap-1.5 mr-1">
+                                        {/* ★ 아침늘봄 횟수: 제목 줄 오른쪽 배지로 표시 */}
+                                        <span className="text-[10.5px] font-black text-violet-600 bg-violet-50 px-1.5 py-[1px] rounded-full leading-[1.4]">아침늘봄 {morningCareMonthlyCount}회</span>
+                                        <button onClick={()=>setShowReport(true)} className="text-slate-300 hover:text-indigo-600 transition-colors" title="전체 기간 표로 보기"><Icon name="table" size={12}/></button>
+                                    </div>
                                 </header>
                                 <div {...attScroll} className="flex-1 min-h-0 overflow-y-auto hide-scrollbar px-1.5 pt-[2px] pb-1" style={{ cursor: 'grab' }}>
                                     {openAttendanceSummaryList.map(r => (
@@ -1228,7 +1232,7 @@
                                             </label>
                                         </div>
                                     ))}
-                                    {openAttendanceSummaryList.length === 0 && dutyMonthlyCounts.length === 0 && morningCareMonthlyCount === 0 && (
+                                    {openAttendanceSummaryList.length === 0 && dutyMonthlyCounts.length === 0 && (
                                         <div className="text-[11.5px] font-bold text-slate-300 text-center pt-2">기록 없음</div>
                                     )}
                                     {/* ★ 복무 횟수는 한 줄로 합쳐 표시 (공간이 부족하면 자동 줄바꿈) */}
@@ -1244,14 +1248,6 @@
                                         </div>
                                     )}
                                 </div>
-                                {/* ★ 아침늘봄 횟수만 박스 맨 아래에 고정 */}
-                                {morningCareMonthlyCount > 0 && (
-                                    <div className="shrink-0 bg-white px-1.5 pt-0.5 pb-1 border-t border-slate-100 rounded-b-[0.75rem]">
-                                        <div className="text-[11.5px] font-black text-violet-600 leading-[1.4]">
-                                            {currentMonthLabel} 아침늘봄 {morningCareMonthlyCount}회
-                                        </div>
-                                    </div>
-                                )}
                             </section>
 
                             <section className="glass-card h-[125px] overflow-hidden">

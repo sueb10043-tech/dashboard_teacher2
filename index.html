@@ -127,7 +127,21 @@
             pointer-events: auto !important;
         }
 
-        .eval-tooltip-text { 
+        /* ★ 평가 요소 말풍선: 위젯 밖에 띄워서 잘리지 않게. 위/아래 방향 자동 */
+        .eval-tip-floating {
+            position: fixed; z-index: 8000; pointer-events: none;
+            background: #1e293b; color: #fff; text-align: center; padding: 6px 12px; border-radius: 6px;
+            width: max-content; max-width: 250px; white-space: normal; word-break: break-all;
+            font-size: 10px; font-weight: 800; line-height: 1.4;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #334155;
+        }
+        .eval-tip-floating.below { transform: translateX(-50%); }
+        .eval-tip-floating.above { transform: translate(-50%, -100%); }
+        .eval-tip-floating::after { content: ""; position: absolute; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; }
+        .eval-tip-floating.below::after { bottom: 100%; border-color: transparent transparent #1e293b transparent; }
+        .eval-tip-floating.above::after { top: 100%; border-color: #1e293b transparent transparent transparent; }
+
+        .eval-tooltip-text {
             visibility: hidden; opacity: 0; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
             background: #1e293b; color: #fff; text-align: center; padding: 6px 12px; border-radius: 6px;
             width: max-content; max-width: 250px; z-index: 9999999; transition: opacity 0.1s, visibility 0.1s;
@@ -258,15 +272,22 @@
             return { ref, onMouseDown, onMouseMove, onMouseUp: stopDrag, onMouseLeave: stopDrag };
         };
 
-        const FactorCell = ({ factor, isFinished }) => {
-            const [showTooltip, setShowTooltip] = useState(false);
+        // ★ 화면 기준 좌표 계산 (바탕화면 전체가 zoom 배율로 축소되어 있으므로 나눠서 보정)
+        const getZoom = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--zoom-level')) || 1;
+        // ★ 화면 아래쪽 한계 (바탕화면 높이 1080px 또는 실제 창 높이 중 작은 값)
+        const getScreenBottom = () => Math.min(1080, window.innerHeight / getZoom());
+
+        // ★ 평가 요소 칸: 말풍선은 위젯 밖(App 맨 위층)에 띄워서 잘리지 않게 함
+        const FactorCell = ({ factor, isFinished, onShowTip, onHideTip }) => {
             const textRef = useRef(null);
-            const handleMouseEnter = () => { if (textRef.current) setShowTooltip(textRef.current.scrollWidth > textRef.current.clientWidth); };
             const content = typeof factor === 'object' ? JSON.stringify(factor) : String(factor || "");
+            const handleMouseEnter = (e) => {
+                if (!textRef.current || textRef.current.scrollWidth <= textRef.current.clientWidth) return;
+                onShowTip(content, e.currentTarget.getBoundingClientRect());
+            };
             return (
-                <td className={`text-left px-1 eval-factor-cell ${isFinished ? 'eval-done-text' : ''}`} onMouseEnter={handleMouseEnter}>
+                <td className={`text-left px-1 eval-factor-cell ${isFinished ? 'eval-done-text' : ''}`} onMouseEnter={handleMouseEnter} onMouseLeave={onHideTip}>
                     <div ref={textRef} className="truncate w-full selectable-text">{content}</div>
-                    <span className={`eval-tooltip-text ${showTooltip ? 'show' : ''}`}>{content}</span>
                 </td>
             );
         };
@@ -387,7 +408,14 @@
             const [isInitialLoading, setIsInitialLoading] = useState(true);
             const [isSyncing, setIsSyncing] = useState(false);
             const [viewDate, setViewDate] = useState(new Date());
-            const [colorPickerDate, setColorPickerDate] = useState(null);
+            const [cellMenuDate, setCellMenuDate] = useState(null); // ★ 달력 칸 ⋯ 메뉴가 열린 날짜
+            // ★ ⋯ 메뉴 바깥을 클릭하면 메뉴 닫기
+            useEffect(() => {
+                if (!cellMenuDate) return;
+                const onDown = (e) => { if (!e.target.closest('.cell-menu, .cell-menu-btn')) setCellMenuDate(null); };
+                document.addEventListener('mousedown', onDown);
+                return () => document.removeEventListener('mousedown', onDown);
+            }, [cellMenuDate]);
             const [confirmClear, setConfirmClear] = useState(null);
             const [isLinkAddOpen, setIsLinkAddOpen] = useState(false);
             const [tempLink, setTempLink] = useState({ name: '', url: 'https://' });
@@ -832,9 +860,23 @@
                     return;
                 }
                 const rect = e.currentTarget.getBoundingClientRect();
-                const zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--zoom-level')) || 1;
-                setEvalResultPopover({ sheetRow: rowObj.sheetRow, colKey, top: (rect.bottom / zoom) + 2, left: rect.left / zoom });
+                const zoom = getZoom();
+                const POPOVER_H = 40; // ◎○△ 선택창 높이(여유 포함)
+                // ★ 아래 공간이 부족하면(화면 맨 아래 줄) 칸 위쪽에 띄움
+                const openAbove = (rect.bottom / zoom) + POPOVER_H > getScreenBottom();
+                const top = openAbove ? (rect.top / zoom) - POPOVER_H + 2 : (rect.bottom / zoom) + 2;
+                setEvalResultPopover({ sheetRow: rowObj.sheetRow, colKey, top, left: rect.left / zoom });
             };
+
+            // ★ 평가 요소 말풍선 (아래 공간이 부족하면 위쪽에 표시)
+            const [evalTip, setEvalTip] = useState(null);
+            const showEvalTip = (text, rect) => {
+                const zoom = getZoom();
+                const TIP_H = 60; // 말풍선 최대 예상 높이
+                const above = (rect.bottom / zoom) + TIP_H > getScreenBottom();
+                setEvalTip({ text, above, left: (rect.left + rect.width / 2) / zoom, top: above ? (rect.top / zoom) - 4 : (rect.bottom / zoom) + 4 });
+            };
+            const hideEvalTip = () => setEvalTip(null);
 
             const selectEvalResult = async (sheetRow, colKey, val) => {
                 setEvalData(prev => prev.map(item => item.sheetRow === sheetRow ? { ...item, [colKey]: val } : item));
@@ -1050,7 +1092,7 @@
                                     if (!date) return <div key={i} className="table-cell bg-white"></div>;
                                     const dStr = getLocalDateString(date), dayData = (data.monthlyData || {})[dStr] || { items:[], bgColor: COLORS.BG_WHITE };
                                     const isHolidayBg = dayData.bgColor === COLORS.BG_RED;
-                                    // ★ 토·일 칸은 폭이 좁아 버튼이 행사 입력칸을 가리므로, 출결이 없는 주말에는 출결(ㅊ) 버튼을 숨겨 버튼 수를 줄임
+                                    // ★ 주말에는 출결이 없으므로 ⋯ 메뉴에서 출결 항목을 숨김
                                     const isWeekendCol = date.getDay() === 0 || date.getDay() === 6;
                                     return (
                                         <div 
@@ -1088,20 +1130,29 @@
                                                     ))}
                                                 </div>
                                             )}
-                                            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 flex gap-1 transition-all z-20">
-                                                <button onClick={() => openDutyModal(dStr)} className="bg-amber-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center text-[10px] font-black leading-none">ㅂ</button>
-                                                {!isWeekendCol && (
-                                                    <button onClick={() => openAttendanceModal(dStr)} className="bg-emerald-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center text-[10px] font-black leading-none">ㅊ</button>
-                                                )}
-                                                <button onClick={() => setColorPickerDate(colorPickerDate === dStr ? null : dStr)} className="bg-slate-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center"><Icon name="palette" size={9}/></button>
-                                                <button onClick={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: [...(dayData.items||[]), {id:Date.now(), text:'', completed:false}]}}})} className="p-0.5 bg-indigo-600 text-white rounded w-[16px] h-[16px] flex items-center justify-center"><Icon name="plus" size={10}/></button>
+                                            {/* ★ 마우스를 올리면 ⋯(메뉴)와 +(일정 추가) 두 개만 표시 → 행사 입력칸을 덜 가림 */}
+                                            <div className={`absolute top-1 right-1 flex gap-1 transition-all z-20 ${cellMenuDate === dStr ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                <button onClick={() => setCellMenuDate(cellMenuDate === dStr ? null : dStr)} className="cell-menu-btn bg-slate-500 text-white rounded w-[16px] h-[16px] flex items-center justify-center text-[11px] font-black leading-none pb-[3px]" title="복무·출결·배경색">⋯</button>
+                                                <button onClick={()=>updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, items: [...(dayData.items||[]), {id:Date.now(), text:'', completed:false}]}}})} className="p-0.5 bg-indigo-600 text-white rounded w-[16px] h-[16px] flex items-center justify-center" title="일정 추가"><Icon name="plus" size={10}/></button>
                                             </div>
-                                            
-                                            {colorPickerDate === dStr && (
-                                                <div className="popover-color-picker" style={{ top: '20px', right: '1px' }}>
-                                                    <div className="color-dot bg-white" onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_WHITE}}}); setColorPickerDate(null); }}></div>
-                                                    <div className="color-dot" style={{ backgroundColor: COLORS.BG_RED }} onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_RED}}}); setColorPickerDate(null); }}></div>
-                                                    <div className="color-dot" style={{ backgroundColor: COLORS.BG_BLUE }} onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: COLORS.BG_BLUE}}}); setColorPickerDate(null); }}></div>
+
+                                            {/* ★ ⋯ 메뉴: 복무 / 출결(주말 제외) / 배경색 */}
+                                            {cellMenuDate === dStr && (
+                                                <div className="cell-menu popover-base p-1 flex flex-col" style={{ top: '20px', right: '1px', width: '92px' }}>
+                                                    <button onClick={() => { openDutyModal(dStr); setCellMenuDate(null); }} className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-amber-50 text-[11px] font-black text-slate-700 text-left">
+                                                        <span className="bg-amber-500 text-white rounded w-[14px] h-[14px] flex items-center justify-center text-[9px] leading-none shrink-0">ㅂ</span>복무
+                                                    </button>
+                                                    {!isWeekendCol && (
+                                                        <button onClick={() => { openAttendanceModal(dStr); setCellMenuDate(null); }} className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-emerald-50 text-[11px] font-black text-slate-700 text-left">
+                                                            <span className="bg-emerald-500 text-white rounded w-[14px] h-[14px] flex items-center justify-center text-[9px] leading-none shrink-0">ㅊ</span>출결
+                                                        </button>
+                                                    )}
+                                                    <div className="flex items-center gap-1.5 px-1.5 py-1 mt-0.5 border-t border-slate-100">
+                                                        <span className="text-[10px] font-black text-slate-400 shrink-0">배경</span>
+                                                        {[COLORS.BG_WHITE, COLORS.BG_RED, COLORS.BG_BLUE].map(c => (
+                                                            <div key={c} className="color-dot" style={{ backgroundColor: c, width: '12px', height: '12px', outline: dayData.bgColor === c ? '2px solid #6366f1' : 'none', outlineOffset: '1px' }} onClick={() => { updateData({monthlyData: {...data.monthlyData, [dStr]: {...dayData, bgColor: c}}}); setCellMenuDate(null); }}></div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
 
@@ -1317,7 +1368,7 @@
                                     <div className="flex items-center gap-1.5"><Icon name="clipboard-list" className="text-purple-600" size={12} /><h2 className="font-black text-[14px]">평가 계획</h2></div>
                                     <button onClick={() => window.open(EVAL_SHEET_LINK, '_blank')} className="mr-1 p-0.5 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-500 transition-colors" title="평가 계획 시트"><Icon name="external-link" size={12} /></button>
                                 </header>
-                                <div {...evalScroll} className="flex-grow overflow-y-auto custom-scrollbar" style={{ height: '110px', cursor: 'grab' }}>
+                                <div {...evalScroll} onScroll={hideEvalTip} className="flex-grow overflow-y-auto custom-scrollbar" style={{ height: '110px', cursor: 'grab' }}>
                                     <table className="eval-table">
                                         <thead><tr><th style={{ width: '20px' }}>V</th><th style={{ width: '35px' }}>과목</th><th style={{ width: '25px' }}>단원</th><th>평가 요소</th><th style={{ width: '18px' }}>1</th><th style={{ width: '18px' }}>2</th><th style={{ width: '18px' }}>3</th><th style={{ width: '18px' }}>4</th></tr></thead>
                                         <tbody>
@@ -1328,7 +1379,7 @@
                                                         <td className="cursor-pointer" onClick={() => toggleEvalDone(row.sheetRow)}><Icon name={isF ? "check-circle-2" : "circle"} className={isF ? "text-green-500" : "text-slate-300"} size={14} /></td>
                                                         <td className={`font-black ${isF ? '' : getSubjectColor(row.subject)}`}>{row.subject}</td>
                                                         <td className="truncate text-[10px]">{row.unit}</td>
-                                                        <FactorCell factor={row.factor} isFinished={isF} />
+                                                        <FactorCell factor={row.factor} isFinished={isF} onShowTip={showEvalTip} onHideTip={hideEvalTip} />
                                                         {['n1', 'n2', 'n3', 'n4'].map(col => (<td key={col} className="cursor-pointer hover:bg-slate-50 font-black text-[10px]" onClick={(e) => openEvalResultPopover(e, row, col)}>{row[col]}</td>))}
                                                     </tr>
                                                 );
@@ -1376,6 +1427,10 @@
                             </section>
                         </div>
                     </div>
+
+                    {evalTip && (
+                        <div className={`eval-tip-floating ${evalTip.above ? 'above' : 'below'}`} style={{ top: evalTip.top, left: evalTip.left }}>{evalTip.text}</div>
+                    )}
 
                     {evalResultPopover && (
                         <div className="popover-base p-1 flex gap-1" style={{ position: 'fixed', top: evalResultPopover.top, left: evalResultPopover.left, zIndex: 7000 }}>
